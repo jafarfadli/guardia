@@ -2,7 +2,7 @@
 import { Plane, rng, cmix, cscale, norm, add, mul, sub, cross } from './math.js';
 import * as ink from './ink.js';
 import { ROOM } from './room.js';
-import { screen } from './printed.js';
+import { screen, person, drawPerson } from './printed.js';
 
 const D = ROOM.d;
 export const DESK = { x0: 0.95, x1: 2.65, z0: 4.5, z1: D - 0.02, top: 0.76, t: 0.035 };
@@ -274,7 +274,16 @@ export function drawShelf(pt) {
         detail: (f) => {
           if (f.id !== 'front') return;
           const z = s.z0 + 0.058;
-          ink.fill(pt.ctx, pt.P(Q(x + 0.02, x + 0.14, y + 0.025, y + 0.19, z)), pt.tone('#A7B9C4', [0, 0, -1], 'shade'));
+          ink.fill(pt.ctx, pt.P(Q(x + 0.02, x + 0.14, y + 0.025, y + 0.19, z)), pt.toneAt('#A7B9C4', [x + 0.08, y + 0.1, z], [0, 0, -1]));
+          // a family photo: two pixel people
+          const ctx = pt.ctx;
+          ctx.save();
+          const tl = pt.pt([x + 0.02, y + 0.19, z]), tr = pt.pt([x + 0.14, y + 0.19, z]), bl = pt.pt([x + 0.02, y + 0.025, z]);
+          ctx.setTransform((tr[0] - tl[0]) / 120, (tr[1] - tl[1]) / 120, (bl[0] - tl[0]) / 165, (bl[1] - tl[1]) / 165, tl[0], tl[1]);
+          const T = (c) => pt.toneAt(c, [x + 0.08, y + 0.1, z], [0, 0, -1]);
+          drawPerson(ctx, 6, 40, 4.6, person(71, 'hijab'), T);
+          drawPerson(ctx, 60, 34, 4.8, person(72, 'glasses'), T);
+          ctx.restore();
           pt.inkPoly3(Q(x + 0.02, x + 0.14, y + 0.025, y + 0.19, z), { base: 0.8 });
         },
       });

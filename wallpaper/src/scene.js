@@ -147,6 +147,10 @@ function drawShell(pt) {
   pt.box([0.0, w, 0, 0.1, d - 0.018, d], { mat: 'cherry', inkBase: 1.4, seed: 4 });
   pt.box([0, 0.018, 0, 0.1, near, d - 0.018], { mat: 'cherry', inkBase: 1.4, seed: 6 });
 
+  // picture rail / cornice in cherry where the walls meet the ceiling
+  pt.box([0.0, w, h - 0.07, h, d - 0.03, d], { mat: 'cherry', inkBase: 1.3, seed: 41 });
+  pt.box([0, 0.03, h - 0.07, h, near, d - 0.03], { mat: 'cherry', inkBase: 1.3, seed: 42 });
+
   // room edges inked
   pt.inkLine3([[0, 0, d], [0, h, d]], { base: 2.2, seed: 2 });
   pt.inkLine3([[0, h, d], [w, h, d]], { base: 1.9, seed: 3 });

@@ -1,37 +1,37 @@
 # Kamar — build plan
 
 Desktop = one lived-in room, drawn as a comic printed on old paper (DESIGN.md).
-Decisions are recorded in PRODUCT.md. Work in stages; each stage ends with a look at the real render.
+Decisions are recorded in PRODUCT.md. Each stage ended with a look at the real render.
 
 ## Stage 1 — Foundation
-- [ ] `design/tokens.json`: the material list (palette, ink, paper, grade, light moods, fonts, line weights)
-- [ ] Fonts: Shantell Sans (lettering/UI), Fantasque Sans Mono (code), Alfa Slab One (printed matter); self-hosted copies for the wallpaper
-- [ ] `scripts/preview.mjs`: headless-Chrome render of the wallpaper at fixed camera views and fixed times (DESIGN.md: "keep a few fixed camera views")
+- [x] `design/tokens.json`: the material list (palette, ink, grade, light, moods, fonts, UI schemes)
+- [x] Fonts: Shantell Sans, Fantasque Sans Mono Nerd Font, Alfa Slab One (system + self-hosted woff2)
+- [x] `scripts/preview.mjs`: headless renders at fixed views and times
 
 ## Stage 2 — Wallpaper (`wallpaper/`)
-- [ ] Engine: 3D-projected toon scene drawn with canvas 2D (flat fills → banded shading → hatching → ink ribbons), WebGL grade pass (lifted blacks, split tone, muted greens, glow, vignette, paper grain, film grain)
-- [ ] Real sun: solar position from time + location → beam through the west window, sun patches with mullion and plant shadows, dust only inside the beam
-- [ ] Moods: dawn, morning (cool light from the other side), midday, late afternoon (hero), sunset, dusk, night (desk lamp)
-- [ ] Room: window wall with gingham curtains and sill plants, rooftops outside; back wall with desk, cork board, tear-off calendar (live date), wall clock (live), posters and photos (pixel-art people), ghost poster, damp stains; bookshelf; honey floor, navy-red-ochre rug, cat bed, cables
-- [ ] Budget: ≤15 fps, scene re-render once a minute, paused when hidden
+- [x] Toon renderer: flat albedo → hard light bands (window spill, lamp cone) → sun patches with cast shadows → hatching → ink ribbons; WebGL print grade
+- [x] Real sun (NOAA) with an art-directed beam path; moods from night to golden hour; morning light from the unseen east window
+- [x] Room: window with sill plants and a city view, gingham curtains, desk (lamp, monitor, mug, books, cactus), chair with cardigan, bookshelf, guitar, record crate (now-playing sleeve), monstera, kilim rug, cat bed, cork board, tear-off calendar (live, with pasaran), wall clock (live), gig poster (pixel-art singer), string lights, pendant lamp
+- [x] Budget: re-render only when the light changes; clock hands on their own layer; dust animates only in the beam
 
-## Stage 3 — Kamar app (`kamar-app/`, Swift, menu-bar app)
-- [ ] Wallpaper host: desktop-level window per screen with WKWebView
-- [ ] Island: paper tab under the bar centre; now playing (Spotify/Music notifications, pixel-art cover), charging, focus timer
-- [ ] Pet: ink tabby cat sprites (pre-rendered from the same pipeline), walks on the Dock line, sleeps when idle, taps along while typing (idle-time API, no Input Monitoring), purrs when clicked
-- [ ] Build script with the CLT module-map workaround (`-vfsoverlay`), ad-hoc signing, LaunchAgent
+## Stage 3 — Kamar app (`kamar-app/`)
+- [x] Desktop-level wallpaper host per screen (custom URL scheme for ES modules)
+- [x] Paper island: idle, music (pixel cover, controls), timer, toasts; steps behind maximised windows
+- [x] si Oren: sprite pipeline from `pet/`, walk/idle/tap/purr/sleep/stretch/dangle, typing via idle-time API
+- [x] Build with the CLT module-map workaround; LaunchAgent; `--snapshot` for checking surfaces offscreen
 
 ## Stage 4 — Bar and windows
-- [ ] SketchyBar: paper tags, ink icons (authored PNG), spaces, front app, weather (Open-Meteo), battery, clock; centre left free for the island
-- [ ] JankyBorders: ink outline on the active window, faded on others
-- [ ] macOS: auto-hide menu bar, accent colour; everything recorded for uninstall
+- [x] SketchyBar paper tags with ink icons (day and night ink), Indonesian clock, Open-Meteo weather, battery
+- [x] JankyBorders ink outlines
+- [x] macOS: menu bar auto-hide (applied live through System Events), warm accent
 
 ## Stage 5 — App themes (generated from tokens)
-- [ ] VS Code: "Kertas" light + "Kertas Malam" dark
-- [ ] Ghostty: same two palettes, paper-grain background
-- [ ] Chrome: theme extension (paper frame, room still on the new tab page)
-- [ ] Spotify: Spicetify theme
+- [x] VS Code Kertas / Kertas Malam (all syntax colours pass WCAG contrast)
+- [x] Ghostty, Spicetify, Chrome (manual load)
 
 ## Stage 6 — Ship
-- [ ] `install.sh` / `uninstall.sh` (symlinks + backups), Brewfile
-- [ ] Finish review against DESIGN.md; README in Indonesian
+- [x] `install.sh` / `uninstall.sh` with backups, Brewfile, README
+
+## Later
+- Ask for a screenshot to tune the bar and island against the live desktop
+- Guitar/record-player idle animations for si Oren; a cat that naps in the wallpaper's cat bed

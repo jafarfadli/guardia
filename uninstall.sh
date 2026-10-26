@@ -4,7 +4,7 @@
 set -uo pipefail
 ROOT=${0:A:h}
 BACKUP=$HOME/.kamar/backup
-say() { print -P "%F{172}==>%f $*" }
+say() { print -r -- "==> $*" }
 
 say "Mematikan Kamar"
 $HOME/Applications/Kamar.app/Contents/MacOS/Kamar --restore-wallpaper 2>/dev/null
@@ -34,6 +34,9 @@ if [[ -f $BACKUP/defaults.tsv ]]; then
     else defaults write $domain $key -string "$value"
     fi
   done < $BACKUP/defaults.tsv
+  hide=$(defaults read -g _HIHideMenuBar 2>/dev/null || echo 0)
+  [[ $hide == 1 ]] && flag=true || flag=false
+  osascript -e "tell application \"System Events\" to tell dock preferences to set autohide menu bar to $flag" >/dev/null 2>&1
   killall SystemUIServer 2>/dev/null
 fi
 

@@ -9,14 +9,17 @@
   @font-face { font-family: "Alfa Slab One"; src: url(fonts/AlfaSlabOne-latin.woff2) format("woff2"); font-display: block; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #3b2c22; }
   canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
-  #dust { mix-blend-mode: screen; pointer-events: none; }
+  #dust { position: fixed; pointer-events: none; mix-blend-mode: screen; display: none; }
+  #dust i { position: absolute; border-radius: 50%; will-change: transform, opacity;
+            background: radial-gradient(circle, rgba(255,240,205,.95) 0, rgba(255,214,160,.55) 38%, rgba(255,200,140,0) 70%); }
   #hands { pointer-events: none; }
+  .lowpower #dust i { animation-play-state: paused; }
 </style>
 </head>
 <body>
 <canvas id="view"></canvas>
 <canvas id="hands"></canvas>
-<canvas id="dust"></canvas>
+<div id="dust"></div>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>

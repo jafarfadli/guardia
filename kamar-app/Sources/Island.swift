@@ -35,6 +35,7 @@ final class IslandController {
         panel.orderFrontRegardless()
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.layout(animated: false) }
         tick = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.onTick() }
+        tick?.tolerance = 0.03
     }
 
     // When a window covers the top centre (a maximised app), the quiet island steps behind
@@ -174,10 +175,23 @@ final class IslandView: NSView {
     }
 
     // ------------------------------------------------------------------ drawing
-    override func draw(_ dirty: NSRect) {
-        guard let ctx = NSGraphicsContext.current?.cgContext, let c = controller else { return }
-        buttons.removeAll()
-        let sc = scheme
+    // The paper (shadow, fibres, inked edge) only changes with size and appearance: cache it.
+    private var paperCache: (key: String, image: CGImage)?
+    private func paper(_ sc: Scheme, scale: CGFloat) -> CGImage? {
+        let key = "\(Int(bounds.width))x\(Int(bounds.height))@\(scale)-\(sc.paper.description.hashValue)"
+        if let c = paperCache, c.key == key { return c.image }
+        let w = Int(bounds.width * scale), h = Int(bounds.height * scale)
+        guard w > 0, h > 0, let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                                               space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.scaleBy(x: scale, y: scale)
+        ctx.translateBy(x: 0, y: bounds.height); ctx.scaleBy(x: 1, y: -1) // match the flipped view
+        drawPaper(ctx, sc)
+        guard let img = ctx.makeImage() else { return nil }
+        paperCache = (key, img)
+        return img
+    }
+
+    private func drawPaper(_ ctx: CGContext, _ sc: Scheme) {
         let tab = CGRect(x: pad, y: -2, width: bounds.width - pad * 2, height: bounds.height - pad + 2)
         // stepped shadow: one hard step, blue-grey, offset down
         let shadowPts = Ink.paperShape(tab.offsetBy(dx: 0, dy: 3.5), radius: 13, seed: 4, jitter: 0.4, squareTop: true)
@@ -199,6 +213,22 @@ final class IslandView: NSView {
         // ink the sides and bottom (the top is the screen edge)
         let inked = shape.filter { $0.y > tab.minY + 1.5 }
         Ink.stroke(inked + [inked.first ?? .zero], width: 1.7, color: sc.ink, seed: 21, taper: 0.25, in: ctx)
+    }
+
+    override func draw(_ dirty: NSRect) {
+        guard let ctx = NSGraphicsContext.current?.cgContext, let c = controller else { return }
+        buttons.removeAll()
+        let sc = scheme
+        let tab = CGRect(x: pad, y: -2, width: bounds.width - pad * 2, height: bounds.height - pad + 2)
+        let scale = window?.backingScaleFactor ?? 2
+        if let img = paper(sc, scale: scale) {
+            ctx.saveGState()
+            ctx.translateBy(x: 0, y: bounds.height); ctx.scaleBy(x: 1, y: -1)
+            ctx.draw(img, in: bounds)
+            ctx.restoreGState()
+        } else {
+            drawPaper(ctx, sc)
+        }
 
         let inner = tab.insetBy(dx: 14, dy: 0)
         switch c.content {

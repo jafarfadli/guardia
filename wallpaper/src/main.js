@@ -28,7 +28,7 @@ function now() {
 }
 
 const view = document.getElementById('view');
-const dustCanvas = document.getElementById('dust');
+const dustEl = document.getElementById('dust');
 const handsCanvas = document.getElementById('hands');
 clockFace.handsElsewhere = true;
 let clockM = null;
@@ -56,7 +56,7 @@ const scene = document.createElement('canvas');
 const scratch = document.createElement('canvas');
 let grader = null;
 try { grader = new Grader(view, TOKENS); } catch (e) { console.warn('[kamar] no WebGL2, showing ungraded scene', e); }
-const dust = new Dust(dustCanvas);
+const dust = new Dust(dustEl);
 let lastLight = null;
 
 async function render(force = false) {
@@ -78,27 +78,18 @@ async function render(force = false) {
   const pt = drawScene(ctx, { W, H, dpr, light, tokens: TOKENS, now: date, view: state.view, scratch, printed, nowPlaying: state.nowPlaying });
   if (grader && !state.raw) {
     grader.bake(scene, { warm: light.warm, cool: light.cool * 0.8, glow: 0.6 + light.sunI * 0.6 + light.lamp * 0.5 });
-    grader.frame(performance.now() / 1000);
+    grader.frame(performance.now() / 1000); // grain is printed once: a still page, not a moving one
+    // the big 2D canvases are only needed while drawing; let their memory go
+    for (const c of [scene, scratch]) { c.width = 1; c.height = 1; }
   } else {
     view.replaceWith(scene);
     scene.id = 'view';
   }
   clockM = clockTransform(pt);
   drawHands(date);
-  dust.setup({ cam: pt.cam, panes: pt.panes, S: light.S, intensity: light.dust * (state.lowPower ? 0.5 : 1), dpr, W, H });
-  dust.draw(performance.now() / 1000);
+  dust.setup({ cam: pt.cam, panes: pt.panes, S: light.S, intensity: light.dust * (state.lowPower ? 0.5 : 1), dpr });
   document.documentElement.dataset.mood = light.name;
   window.__kamar = { light: { name: light.name, elevation: light.elevation, phase: light.phase }, ms: Math.round(performance.now() - t0), ready: true };
-}
-
-let last = 0;
-function loop(t) {
-  if (!state.still) requestAnimationFrame(loop);
-  const fps = state.lowPower ? Math.min(6, state.fps) : state.fps;
-  if (t - last < 1000 / fps) return;
-  last = t;
-  if (grader && !state.raw) grader.frame(t / 1000);
-  dust.draw(t / 1000);
 }
 
 // Re-render on the minute (clock, calendar, and the sun all move).
@@ -110,7 +101,7 @@ function scheduleMinute() {
 // The host app can push now-playing info and power state.
 window.kamar = {
   setNowPlaying(info) { state.nowPlaying = info; render(); },
-  setLowPower(on) { state.lowPower = !!on; },
+  setLowPower(on) { state.lowPower = !!on; document.documentElement.classList.toggle('lowpower', state.lowPower); },
   rerender: () => render(true),
 };
 
@@ -119,5 +110,5 @@ window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTi
 
 document.fonts.ready.then(async () => {
   await render(true);
-  if (!state.still) { requestAnimationFrame(loop); if (!q.get('time')) scheduleMinute(); }
+  if (!state.still && !q.get('time')) scheduleMinute();
 });

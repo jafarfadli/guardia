@@ -74,12 +74,22 @@ final class PetController {
         place()
         panel.orderFrontRegardless()
         last = CACurrentMediaTime()
-        loop = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in self?.step() }
-        RunLoop.main.add(loop!, forMode: .common)
+        schedule(1.0 / 20)
         set(.idle, for: 3)
     }
 
     func stop() { loop?.invalidate(); panel.orderOut(nil) }
+
+    // 20 Hz while moving, 10 Hz otherwise (still quick enough to catch every keypress)
+    private var interval: Double = 0
+    private func schedule(_ i: Double) {
+        guard i != interval else { return }
+        interval = i
+        loop?.invalidate()
+        loop = Timer.scheduledTimer(withTimeInterval: i, repeats: true) { [weak self] _ in self?.step() }
+        loop?.tolerance = i * 0.2
+        RunLoop.main.add(loop!, forMode: .common)
+    }
 
     private var screen: NSScreen { NSScreen.screens.first ?? NSScreen.main! }
     private func groundOrigin() -> CGFloat {
@@ -165,6 +175,7 @@ final class PetController {
         }
         place()
         hitTest()
+        schedule([.walk, .dangle, .fall].contains(state) ? 1.0 / 20 : 1.0 / 10)
     }
 
     private func onKey() {
@@ -194,13 +205,19 @@ final class PetController {
         }
     }
 
+    private var shown: (anim: String, frame: Int, facing: CGFloat, pos: CGPoint) = ("", -1, 0, .zero)
     private func place() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        if let a = anims[anim], !a.frames.isEmpty { sprite.contents = a.frames[min(frame, a.frames.count - 1)] }
-        sprite.setAffineTransform(CGAffineTransform(scaleX: facing, y: 1))
-        CATransaction.commit()
-        panel.setFrameOrigin(pos)
+        // only touch the window server when something actually changed
+        let p = CGPoint(x: pos.x.rounded(), y: pos.y.rounded())
+        if shown.anim != anim || shown.frame != frame || shown.facing != facing {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            if let a = anims[anim], !a.frames.isEmpty { sprite.contents = a.frames[min(frame, a.frames.count - 1)] }
+            sprite.setAffineTransform(CGAffineTransform(scaleX: facing, y: 1))
+            CATransaction.commit()
+        }
+        if shown.pos != p { panel.setFrameOrigin(p) }
+        shown = (anim, frame, facing, p)
     }
 
     // Clicks only land on the cat itself; everywhere else passes through.

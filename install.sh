@@ -6,8 +6,8 @@ STATE=$HOME/.kamar
 BACKUP=$STATE/backup
 mkdir -p $BACKUP
 
-say() { print -P "%F{172}==>%f $*" }
-note() { print -P "    %F{244}$*%f" }
+say() { print -r -- "==> $*" }
+note() { print -r -- "    $*" }
 
 command -v brew >/dev/null || { echo "Homebrew dibutuhkan: https://brew.sh"; exit 1 }
 
@@ -34,10 +34,10 @@ link() {
   elif [[ -e $dst ]]; then
     local saved=$BACKUP/${dst:t}.$(date +%s)
     mv $dst $saved
-    print "$dst\t$saved" >> $BACKUP/moved.tsv
+    print -r -- "$dst	$saved" >> $BACKUP/moved.tsv
   fi
   ln -s $src $dst
-  print "$dst" >> $BACKUP/links.txt
+  print -r -- "$dst" >> $BACKUP/links.txt
 }
 say "Menautkan config (SketchyBar, borders, Ghostty)"
 link $ROOT/dotfiles/sketchybar $HOME/.config/sketchybar
@@ -50,7 +50,7 @@ save_default() { # domain key: remember the original value once
   [[ -f $f ]] && grep -q "^$1	$2	" $f && return 0
   local v
   v=$(defaults read $1 $2 2>/dev/null) || v="__unset__"
-  print "$1\t$2\t$v" >> $f
+  print -r -- "$1	$2	$v" >> $f
 }
 say "Menyembunyikan menu bar macOS (muncul saat kursor ke atas) dan aksen hangat"
 save_default -g _HIHideMenuBar
@@ -59,6 +59,9 @@ save_default -g AppleHighlightColor
 defaults write -g _HIHideMenuBar -bool true
 defaults write -g AppleAccentColor -int 1
 defaults write -g AppleHighlightColor -string "0.968627 0.831373 0.588235 Other"
+# on macOS 26 the defaults key alone does not take effect; System Events applies it live
+osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to false' >/dev/null 2>&1 || true
+osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to true' >/dev/null 2>&1 || true
 killall SystemUIServer 2>/dev/null || true
 
 # ------------------------------------------------------------------ 5. bar and window borders

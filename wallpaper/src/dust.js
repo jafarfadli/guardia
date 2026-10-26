@@ -1,64 +1,65 @@
 // Dust motes that glow only where the sun's beam passes (DESIGN.md: LIGHT).
-// A mote is lit when tracing it back toward the sun lands inside a window pane.
-import { rng, noise1, dot } from './math.js';
-import { WIN } from './room.js';
+// The beam's outline on screen clips a layer of motes animated purely in CSS, so the
+// compositor moves them and no script runs per frame.
+import { rng, add, mul, rayPlane } from './math.js';
+import { hull } from './painter.js';
+import { ROOM } from './room.js';
+
+const N = 46;
 
 export class Dust {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+  constructor(el) {
+    this.el = el;
+    this.k = 0;
     const r = rng(2024);
-    this.motes = [];
-    for (let i = 0; i < 700; i++) {
-      this.motes.push({
-        p: [0.2 + r() * 4.6, 0.1 + r() * 2.4, 1.6 + r() * 3.4],
-        s: 0.5 + r() * 1.3, ph: r() * 100, sp: 0.4 + r() * 0.8,
-      });
+    const css = [];
+    for (let i = 0; i < N; i++) {
+      const d = document.createElement('i');
+      const size = 2.5 + r() * 5;
+      const dur = 18 + r() * 26, delay = -r() * dur;
+      const tw = 2.5 + r() * 4;
+      d.style.cssText = `left:${(r() * 100).toFixed(2)}%;top:${(r() * 100).toFixed(2)}%;width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;` +
+        `animation:kd${i % 6} ${dur.toFixed(1)}s ${delay.toFixed(1)}s linear infinite alternate, kt ${tw.toFixed(1)}s ${(-r() * tw).toFixed(1)}s ease-in-out infinite alternate;`;
+      el.appendChild(d);
     }
+    // six drift paths, slow and lazy, mostly sinking
+    for (let k = 0; k < 6; k++) {
+      const p = rng(k * 31 + 7);
+      const pts = Array.from({ length: 4 }, () => `${((p() - 0.5) * 90).toFixed(0)}px,${((p() - 0.3) * 70).toFixed(0)}px`);
+      css.push(`@keyframes kd${k}{0%{transform:translate(0,0)}33%{transform:translate(${pts[0]})}66%{transform:translate(${pts[1]})}100%{transform:translate(${pts[2]})}}`);
+    }
+    css.push('@keyframes kt{0%{opacity:.25}100%{opacity:1}}');
+    const st = document.createElement('style');
+    st.textContent = css.join('\n');
+    document.head.appendChild(st);
   }
 
-  setup({ cam, panes, S, intensity, dpr, W, H }) {
-    this.cam = cam; this.panes = panes; this.S = S; this.k = intensity; this.dpr = dpr;
-    this.canvas.width = W; this.canvas.height = H;
-  }
-
-  inBeam(p) {
-    const S = this.S;
-    if (S[0] >= -0.01) return false;
-    const t = (WIN.glassX - p[0]) / S[0];
-    if (t <= 0) return false;
-    const y = p[1] + S[1] * t, z = p[2] + S[2] * t;
-    for (const q of this.panes) {
-      const ys = q.map((v) => v[1]), zs = q.map((v) => v[2]);
-      if (y > Math.min(...ys) && y < Math.max(...ys) && z > Math.min(...zs) && z < Math.max(...zs)) return true;
+  // Outline of the beam on screen: the window panes plus where their light lands.
+  setup({ cam, panes, S, intensity, dpr }) {
+    this.k = intensity;
+    if (intensity <= 0.02) { this.el.style.display = 'none'; return; }
+    const D = mul(S, -1);
+    const pts = [];
+    for (const pane of panes) {
+      for (const p of pane) {
+        pts.push(cam.project(p));
+        const hits = [
+          rayPlane(p, D, [0, 1, 0], 0),            // floor
+          rayPlane(p, D, [0, 0, -1], -ROOM.d),     // back wall
+        ].filter((h) => h && h[1] >= -0.01 && h[2] <= ROOM.d + 0.01);
+        for (const h of hits) pts.push(cam.project(h));
+      }
     }
-    return false;
-  }
-
-  draw(time) {
-    const ctx = this.ctx;
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    if (!this.cam || this.k <= 0.02) return;
-    for (const m of this.motes) {
-      // slow brownian drift with a lazy downward settle and an updraft near the warm floor patch
-      const t = time * 0.05 * m.sp;
-      const p = [
-        m.p[0] + 0.35 * noise1(t + m.ph, 1),
-        m.p[1] + 0.25 * noise1(t * 0.8 + m.ph, 2) + 0.15 * Math.sin(t * 0.7 + m.ph),
-        m.p[2] + 0.35 * noise1(t * 0.9 + m.ph, 3),
-      ];
-      if (!this.inBeam(p)) continue;
-      const q = this.cam.project(p);
-      if (q[2] <= 0.1) continue;
-      const tw = 0.55 + 0.45 * Math.sin(time * (1.3 + m.sp) + m.ph * 7);
-      const r = (0.7 + m.s * 1.3) * Math.min(1.6, Math.max(0.55, 3.2 / q[2])) * this.dpr;
-      const a = Math.min(1, 3.2 / q[2]) * (0.35 + 0.65 * tw) * this.k;
-      const g = ctx.createRadialGradient(q[0], q[1], 0, q[0], q[1], r * 2.2);
-      g.addColorStop(0, `rgba(255,236,200,${0.95 * a})`);
-      g.addColorStop(0.4, `rgba(255,214,160,${0.5 * a})`);
-      g.addColorStop(1, 'rgba(255,200,140,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(q[0] - r * 2.2, q[1] - r * 2.2, r * 4.4, r * 4.4);
-    }
+    const H = hull(pts.filter((q) => q[2] > 0.1));
+    if (H.length < 3) { this.el.style.display = 'none'; return; }
+    const poly = H.map(([x, y]) => `${(x / dpr).toFixed(1)}px ${(y / dpr).toFixed(1)}px`).join(',');
+    const xs = H.map((q) => q[0] / dpr), ys = H.map((q) => q[1] / dpr);
+    const box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    Object.assign(this.el.style, {
+      display: 'block', left: box.x + 'px', top: box.y + 'px', width: box.w + 'px', height: box.h + 'px',
+      clipPath: `polygon(${H.map(([x, y]) => `${(x / dpr - box.x).toFixed(1)}px ${(y / dpr - box.y).toFixed(1)}px`).join(',')})`,
+      opacity: String(Math.min(1, intensity)),
+    });
+    void poly;
   }
 }
