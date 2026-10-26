@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>si Oren</title>
+<style>
+  @font-face { font-family: "Shantell Sans"; src: url(../wallpaper/fonts/ShantellSans-latin.woff2) format("woff2"); font-weight: 300 800; }
+  body { margin: 0; background: #E9DFC8; font: 600 14px "Shantell Sans", system-ui; color: #2B1C14; }
+  .row { display: flex; gap: 0; padding: 8px 12px; align-items: center; }
+  .row b { width: 70px; }
+  canvas { image-rendering: auto; }
+</style>
+</head>
+<body>
+<div id="sheet"></div>
+<script type="module">
+import { drawCat } from './cat.js';
+import { ANIMS, CELL } from './poses.js';
+
+const q = new URLSearchParams(location.search);
+const S = Number(q.get('scale') || 2);
+
+// The room's print grade, applied per pixel so the pet matches the wallpaper.
+function grade(ctx, w, h) {
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const sh = [0x54 / 255, 0x6e / 255, 0x99 / 255], hi = [0xed / 255, 0xb8 / 255, 0x7a / 255];
+  const lift = [0x20 / 255, 0x15 / 255, 0x0f / 255];
+  const soft = (a, b) => (b < 0.5 ? 2 * a * b + a * a * (1 - 2 * b) : 2 * a * (1 - b) + Math.sqrt(a) * (2 * b - 1));
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    let r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+    const l = 0.299 * r + 0.587 * g + 0.114 * b;
+    const t = Math.min(1, Math.max(0, (l - 0.16) / 0.64));
+    const k = t * t * (3 - 2 * t);
+    const tint = [sh[0] + (hi[0] - sh[0]) * k, sh[1] + (hi[1] - sh[1]) * k, sh[2] + (hi[2] - sh[2]) * k];
+    r = r + (soft(r, tint[0]) - r) * 0.3; g = g + (soft(g, tint[1]) - g) * 0.3; b = b + (soft(b, tint[2]) - b) * 0.3;
+    r = lift[0] + (1 - lift[0]) * r; g = lift[1] + (1 - lift[1]) * g; b = lift[2] + (1 - lift[2]) * b;
+    // a little paper grain
+    const n = (Math.sin(i * 12.9898) * 43758.5453) % 1;
+    const gr = 1 + (n - 0.5) * 0.05;
+    d[i] = Math.min(255, r * gr * 255); d[i + 1] = Math.min(255, g * gr * 255); d[i + 2] = Math.min(255, b * gr * 255);
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+const out = {};
+const sheet = document.getElementById('sheet');
+await document.fonts.load('700 16px "Shantell Sans"');
+for (const [name, a] of Object.entries(ANIMS)) {
+  const c = document.createElement('canvas');
+  c.width = CELL.w * S * a.frames; c.height = CELL.h * S;
+  c.style.width = (CELL.w * a.frames) / 2 + 'px';
+  const ctx = c.getContext('2d');
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < a.frames; i++) {
+    ctx.save();
+    ctx.translate(i * CELL.w * S, 0);
+    ctx.scale(S, S);
+    drawCat(ctx, a.pose(i, a.frames), 1);
+    ctx.restore();
+  }
+  grade(ctx, c.width, c.height);
+  const row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = `<b>${name}</b>`; row.appendChild(c); sheet.appendChild(row);
+  out[name] = { png: c.toDataURL('image/png'), frames: a.frames, fps: a.fps, loop: a.loop };
+}
+window.__sprites = { cell: { ...CELL, scale: S }, anims: out };
+window.__kamar = { ready: true, light: {}, ms: 0 };
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "cell": {
+    "w": 200,
+    "h": 160,
+    "groundY": 150,
+    "scale": 2
+  },
+  "anims": {
+    "walk": {
+      "frames": 8,
+      "fps": 10,
+      "loop": true
+    },
+    "idle": {
+      "frames": 8,
+      "fps": 4,
+      "loop": true
+    },
+    "tap": {
+      "frames": 4,
+      "fps": 12,
+      "loop": true
+    },
+    "purr": {
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    "sleep": {
+      "frames": 8,
+      "fps": 3,
+      "loop": true
+    },
+    "dangle": {
+      "frames": 6,
+      "fps": 6,
+      "loop": true
+    },
+    "stretch": {
+      "frames": 8,
+      "fps": 8,
+      "loop": false
+    }
+  }
+}
