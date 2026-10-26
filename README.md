@@ -6,8 +6,8 @@ Desktop Mac ini sekarang adalah satu ruangan yang digambar seperti **komik yang 
 
 | Bagian | Apa | Di mana |
 |---|---|---|
-| Wallpaper hidup | Ruangan ber-shading cel, garis tinta coklat, dan grade cetak pudar. Posisi matahari dihitung dari jam dan lokasi: sore ada sinar dan debu berkilau, pagi cahaya dingin dari jendela timur, malam lampu meja dan lampu tumbler. Jam dinding, kalender sobek (lengkap dengan pasaran Jawa), dan sampul lagu Spotify ikut ter-update | `wallpaper/` |
-| si Oren | Kucing oren bergaya tinta. Jalan-jalan di atas Dock, tidur kalau kamu tinggal, menepuk-nepuk saat kamu mengetik, mendengkur kalau diklik | `pet/`, `kamar-app/Sources/Pet.swift` |
+| Wallpaper hidup | Ruangan 3D yang dirender di **Blender** dengan shading cel (5 tingkat cahaya), garis tinta Freestyle, dan grade cetak pudar. Ada ±42 gambar sepanjang hari: pagi cahaya dingin dari jendela timur, sore sinar matahari di karpet dengan debu berkilau, malam lampu belajar dan lampu tumbler. Jam dinding, kalender sobek (lengkap dengan pasaran Jawa), dan sampul lagu Spotify dicetak live di atasnya | `blender/`, `wallpaper/` |
+| si Oren | Kucing oren chibi bergaya tinta, satu siluet utuh. Jalan-jalan di atas Dock, tidur kalau kamu tinggal, menepuk-nepuk saat kamu mengetik, mendengkur kalau diklik | `pet/`, `kamar-app/Sources/Pet.swift` |
 | Dynamic island | Tab kertas di tengah atas: lagu yang sedang diputar (sampul pixel art dan kontrol), timer fokus, notifikasi ngecas | `kamar-app/Sources/Island.swift` |
 | Menu bar | SketchyBar: tag kertas untuk logo, desktop, app aktif, cuaca, baterai, dan jam berbahasa Indonesia | `dotfiles/sketchybar/` |
 | Border jendela | Garis tinta di jendela aktif, garis pudar di jendela lain (JankyBorders) | `dotfiles/borders/` |
@@ -42,10 +42,11 @@ open -g kamar://playpause    # play / pause musik
 
 - **Warna dan font**: edit `design/tokens.json`, lalu jalankan `node scripts/build-themes.mjs && ./install.sh`.
 - **Lokasi matahari**: `location` di `design/tokens.json` (bawaan: Jakarta).
-- **Ruangan**: semua benda ada di `wallpaper/src/` (`room.js`, `furniture.js`, `decor.js`, `plants.js`, `textiles.js`, `music.js`). Untuk melihat hasilnya tanpa memasang:
+- **Ruangan**: dibangun lewat script di `blender/kamar/` (`room.py`, `props.py`, `lights.py`). File `blender/kamar.blend` bisa dibuka langsung di Blender untuk dilihat atau diutak-atik. Setelah mengubah script:
   ```sh
-  npm install
-  node scripts/preview.mjs --times 07:30,16:30,21:00   # hasilnya di build/preview/
+  blender -b --factory-startup --python blender/build.py -- --scale 0.5 --phase 1.53 --out build/blender/coba.png   # uji satu gambar
+  blender -b --factory-startup --python blender/render.py -- --scale 1.0 --save                                       # render ulang sehari penuh (±20 menit)
+  node scripts/preview.mjs --times 07:30,16:30,21:00                                                                  # lihat hasil akhirnya di build/preview/
   ```
 - **si Oren dan ikon bar**: `pet/poses.js` dan `bar/icons.js`, lalu `node scripts/render-assets.mjs`.
 

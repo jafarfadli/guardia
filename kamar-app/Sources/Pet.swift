@@ -143,7 +143,7 @@ final class PetController {
         case .walk:
             let dir: CGFloat = targetX > pos.x ? 1 : -1
             facing = dir
-            pos.x += dir * 44 * CGFloat(dt)
+            pos.x += dir * 27 * CGFloat(dt)  // matches the stride of the 12-frame walk
             if abs(targetX - pos.x) < 3 || Date() > until { set(.idle, for: Double.random(in: 4...9)) }
         case .sleep:
             if anyIdle < 0.6 { set(.stretch, for: 1.1) }

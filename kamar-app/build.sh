@@ -24,7 +24,7 @@ swiftc -O -target arm64-apple-macos14.0 $flags $here/Sources/*.swift -o $app/Con
 cp $here/Info.plist $app/Contents/Info.plist
 # web wallpaper and pet sprites travel inside the bundle
 mkdir -p $app/Contents/Resources/wallpaper
-cp -R $root/wallpaper/index.html $root/wallpaper/src $root/wallpaper/fonts $app/Contents/Resources/wallpaper/
+cp -R $root/wallpaper/index.html $root/wallpaper/src $root/wallpaper/fonts $root/wallpaper/frames $app/Contents/Resources/wallpaper/
 cp -R $here/Resources/pet $app/Contents/Resources/pet
 codesign --force --sign - --timestamp=none $app >/dev/null
 echo "built $app"

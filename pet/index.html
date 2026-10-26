@@ -57,7 +57,7 @@ for (const [name, a] of Object.entries(ANIMS)) {
     ctx.save();
     ctx.translate(i * CELL.w * S, 0);
     ctx.scale(S, S);
-    drawCat(ctx, a.pose(i, a.frames), 1);
+    drawCat(ctx, a.pose(i, a.frames));
     ctx.restore();
   }
   grade(ctx, c.width, c.height);

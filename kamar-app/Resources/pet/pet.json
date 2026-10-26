@@ -7,38 +7,38 @@
   },
   "anims": {
     "walk": {
-      "frames": 8,
-      "fps": 10,
+      "frames": 12,
+      "fps": 12,
       "loop": true
     },
     "idle": {
-      "frames": 8,
-      "fps": 4,
+      "frames": 16,
+      "fps": 6,
       "loop": true
     },
     "tap": {
-      "frames": 4,
+      "frames": 6,
       "fps": 12,
       "loop": true
     },
     "purr": {
-      "frames": 8,
-      "fps": 8,
+      "frames": 12,
+      "fps": 10,
       "loop": true
     },
     "sleep": {
-      "frames": 8,
-      "fps": 3,
+      "frames": 12,
+      "fps": 4,
       "loop": true
     },
     "dangle": {
-      "frames": 6,
-      "fps": 6,
+      "frames": 8,
+      "fps": 8,
       "loop": true
     },
     "stretch": {
-      "frames": 8,
-      "fps": 8,
+      "frames": 10,
+      "fps": 9,
       "loop": false
     }
   }

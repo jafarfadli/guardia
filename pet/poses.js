@@ -1,86 +1,90 @@
-// Animation poses for si Oren. Cell: 200 × 160 (CSS px), facing right, ground at y = 150.
+// si Oren's animations. Cell 200 × 160 (CSS px), facing right, ground at y = 150.
 import { COL } from './cat.js';
 
 const TAU = Math.PI * 2;
-const sin = Math.sin, cos = Math.cos;
+const { sin, cos, abs, max } = Math;
+const GROUND = 146; // paw centres sit just above the ground line
 
 function walk(i, n) {
   const ph = (i / n) * TAU;
-  const leg = (off, hind) => {
-    const s = sin(ph + off);
-    const lift = Math.max(0, cos(ph + off)) * 0.55; // knee folds while the paw swings forward
-    if (hind) return [0.18 + 0.42 * s, 0.18 + 0.42 * s - 0.55 - lift * 0.4];
-    return [0.4 * s, 0.4 * s - lift * 0.9];
+  const bob = -2.4 * abs(sin(ph)) + 1.2;
+  const bob2 = -2.0 * abs(sin(ph - 0.55)) + 1.0;
+  const squash = 0.03 * sin(2 * ph);
+  const foot = (hx, off) => {
+    const s = sin(ph + off), c = cos(ph + off);
+    return [hx + 11 * s, GROUND - max(0, c) * 6.5];
   };
+  const bx = 98, by = 115 + bob;
   return {
-    body: { x: 98, y: 102 + 1.6 * sin(2 * ph), len: 92, h: 42, tilt: 0.025 * sin(ph), shape: 'walk' },
-    head: { x: 153, y: 80 + 1.8 * sin(2 * ph + 0.6), r: 24, tilt: -0.04 + 0.03 * sin(ph) },
-    legs: { bl: leg(0, true), fl: leg(Math.PI / 2, false), br: leg(Math.PI, true), fr: leg(Math.PI * 1.5, false) },
-    legLen: [22, 22],
-    tail: [[54, 96], [38, 84 + 2 * sin(ph)], [30 + 3 * sin(ph + 1), 64], [38 + 6 * sin(ph + 1.6), 46]],
-    eyes: 'open',
+    body: { x: bx, y: by, rx: 38 * (1 - squash * 0.6), ry: 24 * (1 + squash), shape: 'bean', a: 0.03 * sin(ph) },
+    head: { x: 139, y: 79 + bob2, r: 31, a: -0.04 + 0.03 * sin(ph - 0.5) },
+    ears: 1,
+    legs: [
+      { hip: [80, by + 8], foot: foot(80, Math.PI), far: true },
+      { hip: [113, by + 8], foot: foot(113, Math.PI * 1.5), far: true },
+      { hip: [84, by + 10], foot: foot(84, 0) },
+      { hip: [117, by + 10], foot: foot(117, Math.PI / 2) },
+    ],
+    tail: [[66, by - 4], [52 + 2 * sin(ph - 1), by - 18], [50 + 4 * sin(ph - 1.6), by - 38], [58 + 5 * sin(ph - 2.2), by - 50]],
+    eyes: 'open', look: [1, 0],
   };
 }
 
-function sitBase(o = {}) {
+function sit(o = {}) {
+  const br = o.breathe ?? 0;
+  const by = 116 + (o.dy ?? 0);
   return {
-    body: { x: 96, y: 112 + (o.dy ?? 0), len: 64, h: 48 * (1 + (o.breathe ?? 0) * 0.03), tilt: 0, shape: 'sit' },
-    head: { x: 114 + (o.hx ?? 0), y: 60 + (o.dy ?? 0) + (o.hy ?? 0), r: 24, tilt: o.tilt ?? -0.06 },
-    legs: o.noFront ? null : { fl: [0.02, -0.02], fr: [-0.03, -0.04] },
-    legLen: [15, 16],
-    tail: o.tail ?? [[62, 140], [44, 146], [52, 153], [88, 153], [120, 150], [134, 143 + (o.tip ?? 0)]],
-    eyes: o.eyes ?? 'open',
-    mouth: o.mouth,
-    ears: o.ears,
-    frontPaws: o.frontPaws,
-    extra: (ctx, W) => {
-      // folded hind paw peeking out at the front of the haunch
-      hindPaw(ctx, 74, 149, W);
-      o.extra?.(ctx, W);
-    },
+    body: { x: 98, y: by, rx: 30 * (1 + br * 0.01), ry: 31 * (1 + br * 0.015), shape: 'sit' },
+    head: { x: 110 + (o.hx ?? 0), y: 72 + (o.dy ?? 0) + (o.hy ?? 0), r: 32, a: o.tilt ?? -0.05 },
+    ears: o.ears ?? 1,
+    legs: o.legs ?? [
+      { hip: [83, 132], foot: [78, GROUND], r0: 12, r1: 8.5 },
+      { hip: [104, 128], foot: [104, GROUND], far: true },
+      { hip: [114, 128], foot: [116, GROUND] },
+    ],
+    tail: [[72, 142], [58, 148], [74, 153], [104, 152], [126, 148], [136 + (o.tip ?? 0), 140 + (o.tip ?? 0) * 0.3]],
+    tailW: [7.5, 6],
+    eyes: o.eyes ?? 'open', mouth: o.mouth, look: o.look ?? [0.5, 0],
+    extra: o.extra,
   };
-}
-
-function hindPaw(ctx, x, y, W) {
-  ctx.beginPath();
-  ctx.ellipse(x, y - 3, 11, 5, 0, Math.PI, 0);
-  ctx.lineTo(x + 11, y); ctx.lineTo(x - 11, y); ctx.closePath();
-  ctx.fillStyle = COL.cream; ctx.fill();
-  ctx.lineWidth = W; ctx.strokeStyle = COL.ink; ctx.stroke();
 }
 
 function idle(i, n) {
   const ph = (i / n) * TAU;
-  return sitBase({ tip: -4 * sin(ph), tilt: -0.06 + 0.04 * sin(ph * 0.5), eyes: i === 3 ? 'closed' : 'open', breathe: sin(ph) });
+  return sit({
+    breathe: sin(ph), tip: 4 * sin(ph * 2), tilt: -0.05 + 0.03 * sin(ph),
+    eyes: i === 10 || i === 11 ? 'closed' : 'open', ears: i >= 13 && i <= 14 ? 0.4 : 1,
+    look: [0.5 + 0.5 * sin(ph * 0.5), 0],
+  });
 }
 
-function tap(i) {
-  // bongo taps: one front paw up, the other down, alternating
+function tap(i, n) {
+  // bongo paws: one up, the other down, alternating with every key
   const up = i % 2 === 0;
-  const sh = [118, 104];
-  return sitBase({
-    noFront: true, eyes: 'open', mouth: i % 4 === 1 ? 'open' : undefined, hy: up ? -1 : 1, tip: up ? -6 : 3,
-    frontPaws: [
-      { from: [sh[0] - 6, sh[1]], a1: up ? -0.05 : 0.55, a2: up ? -0.1 : 1.35, far: true },
-      { from: sh, a1: up ? 0.6 : 0.05, a2: up ? 1.45 : 0.0 },
+  const press = (i % 2) * 0.5 + 0.5;
+  return sit({
+    dy: up ? -1 : 0.5, hy: up ? -1.5 : 1, tip: up ? -4 : 3, mouth: i % 3 === 1 ? 'open' : undefined, look: [1, 0.4],
+    legs: [
+      { hip: [83, 132], foot: [78, GROUND], r0: 12, r1: 8.5 },
+      { hip: [104, 128], foot: up ? [104, GROUND] : [114, 131], far: true },
+      { hip: [114, 128], foot: up ? [126, 129] : [116, GROUND] },
     ],
     extra: (ctx) => {
-      // little motion ticks where a paw lands
-      const x = up ? 112 : 132;
-      ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
-      for (const [dx, dy] of [[-8, -2], [0, -6], [8, -2]]) { ctx.beginPath(); ctx.moveTo(x + dx * 0.6, 146 + dy * 0.6); ctx.lineTo(x + dx, 146 + dy); ctx.stroke(); }
+      const x = up ? 104 : 116;
+      ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.6 * press; ctx.lineCap = 'round';
+      for (const [dx, dy] of [[-9, -3], [0, -7], [9, -3]]) { ctx.beginPath(); ctx.moveTo(x + dx * 0.55, 145 + dy * 0.55); ctx.lineTo(x + dx, 145 + dy); ctx.stroke(); }
     },
   });
 }
 
 function purr(i, n) {
   const ph = (i / n) * TAU;
-  return sitBase({
-    eyes: 'happy', tilt: -0.14 + 0.05 * sin(ph), hx: 2, breathe: sin(ph * 2), tip: -6 * sin(ph),
+  return sit({
+    eyes: 'happy', tilt: -0.14 + 0.06 * sin(ph), hx: 2, breathe: sin(ph * 2), tip: 6 * sin(ph),
     extra: (ctx) => {
       for (let k = 0; k < 2; k++) {
         const t = ((i / n) + k * 0.5) % 1;
-        heart(ctx, 150 + k * 18 - t * 6, 42 - t * 34, 6 + t * 2, 1 - t * 0.7);
+        heart(ctx, 150 + k * 16 - t * 6, 46 - t * 34, 6 + t * 2, 1 - t * 0.75);
       }
     },
   });
@@ -93,8 +97,8 @@ function heart(ctx, x, y, s, a) {
   ctx.moveTo(x, y + s * 0.9);
   ctx.bezierCurveTo(x - s * 1.4, y - s * 0.1, x - s * 0.7, y - s * 1.2, x, y - s * 0.35);
   ctx.bezierCurveTo(x + s * 0.7, y - s * 1.2, x + s * 1.4, y - s * 0.1, x, y + s * 0.9);
-  ctx.fillStyle = '#C0533F'; ctx.fill();
-  ctx.lineWidth = 1.5; ctx.strokeStyle = COL.ink; ctx.stroke();
+  ctx.fillStyle = '#D9604E'; ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = COL.ink; ctx.stroke();
   ctx.restore();
 }
 
@@ -102,58 +106,70 @@ function sleep(i, n) {
   const ph = (i / n) * TAU;
   const br = sin(ph);
   return {
-    body: { x: 100, y: 128 - br * 0.8, len: 98, h: 40 * (1 + br * 0.04), tilt: 0, shape: 'loaf' },
-    head: { x: 147, y: 121, r: 21, tilt: 0.22, },
-    legs: null,
-    tail: [[56, 138], [62, 151], [100, 154], [138, 152], [158, 145]],
-    eyes: 'closed', ears: 'back',
+    body: { x: 98, y: 131 - br * 0.6, rx: 46, ry: 18 * (1 + br * 0.04), shape: 'loaf' },
+    head: { x: 138, y: 124 - br * 0.4, r: 27, a: 0.18 },
+    ears: 0.2,
+    legs: [],
+    tail: [[56, 138], [60, 149], [96, 152], [132, 151], [150, 145 + sin(ph * 0.5) * 1.5]],
+    tailW: [7, 5.5],
+    eyes: 'closed',
     extra: (ctx) => {
-      ctx.font = '700 15px "Shantell Sans"';
       ctx.fillStyle = COL.ink;
       for (let k = 0; k < 3; k++) {
         const t = ((i / n) + k / 3) % 1;
-        ctx.globalAlpha = Math.sin(t * Math.PI);
+        ctx.globalAlpha = sin(t * Math.PI);
         ctx.font = `700 ${11 + t * 8}px "Shantell Sans"`;
-        ctx.fillText('z', 166 + t * 12 + k * 2, 100 - t * 46);
+        ctx.fillText('z', 160 + t * 12 + k * 2, 104 - t * 44);
       }
       ctx.globalAlpha = 1;
     },
   };
 }
 
-function dangle(i, n) {
-  const ph = (i / n) * TAU;
-  const sw = 0.08 * sin(ph);
+function stretch(i, n) {
+  const t = sin((i / (n - 1)) * Math.PI);
   return {
-    body: { x: 100, y: 92, len: 78, h: 38, tilt: -1.45 + sw, shape: 'walk' },
-    head: { x: 108, y: 34, r: 23, tilt: -0.1 + sw * 0.5 },
-    legs: { bl: [sw * 2, sw], fl: [0.15 + sw * 2, 0.2], br: [-0.1 + sw, -0.05], fr: [0.05 + sw, 0.1] },
-    legLen: [18, 18],
-    tail: [[98, 128], [96, 140], [92 + 6 * sin(ph), 152], [96 + 8 * sin(ph + 1), 158]],
-    eyes: 'half', ears: 'back',
+    body: { x: 96 + t * 2, y: 116 - t * 4, rx: 38 + t * 8, ry: 23 - t * 3, shape: 'bean', a: 0.28 * t },
+    head: { x: 140 + t * 6, y: 82 + t * 18, r: 30, a: 0.15 * t },
+    ears: 1 - t * 0.7,
+    legs: [
+      { hip: [80, 124 - t * 10], foot: [80, GROUND], far: true },
+      { hip: [112, 124 + t * 4], foot: [112 + t * 26, GROUND], far: true },
+      { hip: [84, 126 - t * 10], foot: [86, GROUND] },
+      { hip: [116, 126 + t * 4], foot: [118 + t * 30, GROUND] },
+    ],
+    tail: [[64, 110 - t * 14], [50, 92 - t * 18], [48, 70 - t * 16], [56, 56 - t * 12]],
+    eyes: t > 0.45 ? 'closed' : 'open', mouth: t > 0.7 ? 'open' : undefined,
   };
 }
 
-function stretch(i, n) {
-  // a long front stretch, butt up (played once after waking)
-  const t = Math.sin((i / (n - 1)) * Math.PI);
+function dangle(i, n) {
+  const ph = (i / n) * TAU;
+  const sw = sin(ph);
+  const a = -1.5 + 0.07 * sw;
   return {
-    body: { x: 96, y: 112 - t * 6, len: 96 + t * 10, h: 38, tilt: 0.22 * t, shape: 'walk' },
-    head: { x: 156 + t * 6, y: 112 - t * 4, r: 23, tilt: 0.1 },
-    legs: { bl: [0.1, 0.05], fl: [0.9 * t + 0.1, 1.1 * t], br: [0.05, 0.0], fr: [0.8 * t + 0.1, 1.0 * t] },
-    legLen: [22 - t * 4, 22 - t * 4],
-    tail: [[52, 100 - t * 10], [38, 80 - t * 14], [34, 60 - t * 12], [42, 44 - t * 8]],
-    eyes: t > 0.5 ? 'closed' : 'half', mouth: t > 0.7 ? 'open' : undefined,
+    body: { x: 100 + sw * 2, y: 98, rx: 34, ry: 23, shape: 'bean', a },
+    head: { x: 100 + sw * 0.8, y: 50, r: 30, a: 0.05 * sw },
+    ears: 0.1,
+    legs: [
+      { hip: [92, 120], foot: [90 + sw * 3, 140], far: true },
+      { hip: [108, 120], foot: [110 + sw * 3, 140] },
+      { hip: [94, 84], foot: [88 + sw * 2, 100], far: true },
+      { hip: [108, 84], foot: [114 + sw * 2, 100] },
+    ],
+    tail: [[100, 128], [98 + sw * 4, 140], [96 + sw * 7, 150], [100 + sw * 8, 156]],
+    tailW: [7, 5.5],
+    eyes: 'half', look: [0.6, 0.2],
   };
 }
 
 export const ANIMS = {
-  walk: { frames: 8, fps: 10, pose: walk, loop: true },
-  idle: { frames: 8, fps: 4, pose: idle, loop: true },
-  tap: { frames: 4, fps: 12, pose: tap, loop: true },
-  purr: { frames: 8, fps: 8, pose: purr, loop: true },
-  sleep: { frames: 8, fps: 3, pose: sleep, loop: true },
-  dangle: { frames: 6, fps: 6, pose: dangle, loop: true },
-  stretch: { frames: 8, fps: 8, pose: stretch, loop: false },
+  walk: { frames: 12, fps: 12, pose: walk, loop: true },
+  idle: { frames: 16, fps: 6, pose: idle, loop: true },
+  tap: { frames: 6, fps: 12, pose: tap, loop: true },
+  purr: { frames: 12, fps: 10, pose: purr, loop: true },
+  sleep: { frames: 12, fps: 4, pose: sleep, loop: true },
+  dangle: { frames: 8, fps: 8, pose: dangle, loop: true },
+  stretch: { frames: 10, fps: 9, pose: stretch, loop: false },
 };
 export const CELL = { w: 200, h: 160, groundY: 150 };

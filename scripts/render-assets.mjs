@@ -34,6 +34,15 @@ try {
   }
   await writeFile(join(outDir, 'pet.json'), JSON.stringify(meta, null, 2));
 
+  // printed textures for the Blender room
+  await tab.goto(`http://127.0.0.1:${port}/blender/textures.html`, { waitUntil: 'load' });
+  await tab.waitForFunction('window.__textures', { timeout: 60000 });
+  const tex = await tab.evaluate(() => window.__textures);
+  const texDir = join(root, 'blender/textures');
+  await mkdir(texDir, { recursive: true });
+  for (const [name, png] of Object.entries(tex)) await writeFile(join(texDir, `${name}.png`), Buffer.from(png.split(',')[1], 'base64'));
+  console.log('textures', Object.keys(tex).join(' '));
+
   // menu bar icons
   await tab.goto(`http://127.0.0.1:${port}/bar/index.html`, { waitUntil: 'load' });
   await tab.waitForFunction('window.__icons', { timeout: 60000 });

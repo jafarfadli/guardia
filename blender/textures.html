@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><title>Tekstur kamar</title>
+<style>
+  @font-face { font-family: "Shantell Sans"; src: url(../wallpaper/fonts/ShantellSans-latin.woff2) format("woff2"); font-weight: 300 800; }
+  @font-face { font-family: "Alfa Slab One"; src: url(../wallpaper/fonts/AlfaSlabOne-latin.woff2) format("woff2"); }
+  body { margin: 0; background: #2B1C14; }
+</style></head>
+<body>
+<script type="module">
+import { renderAll } from './textures.js';
+await document.fonts.load('800 40px "Shantell Sans"');
+await document.fonts.load('40px "Alfa Slab One"');
+window.__textures = renderAll();
+</script>
+</body></html>
