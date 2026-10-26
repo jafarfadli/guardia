@@ -6,7 +6,8 @@ import { roomLight } from './sun.js';
 import { drawScene } from './scene.js';
 import { Grader } from './grade.js';
 import { Dust } from './dust.js';
-import { buildPrinted } from './printed.js';
+import { buildPrinted, clockFace, clockHands } from './printed.js';
+import { clockTransform } from './decor.js';
 
 const q = new URLSearchParams(location.search);
 const state = {
@@ -28,6 +29,29 @@ function now() {
 
 const view = document.getElementById('view');
 const dustCanvas = document.getElementById('dust');
+const handsCanvas = document.getElementById('hands');
+clockFace.handsElsewhere = true;
+let clockM = null;
+let lastSig = '';
+
+// What would make the room look different: if none of it changed, skip the full render.
+function signature(light, date, W, H) {
+  const beam = light.sunI > 0.01;
+  return JSON.stringify([
+    Math.round(light.phase * 250), Math.round(light.sunI * 50), beam ? Math.round(light.elevation * 2) : 0,
+    date.toDateString(), state.nowPlaying ? state.nowPlaying.title + (state.nowPlaying.art || []).length : '', W, H, state.view,
+  ]);
+}
+
+function drawHands(date) {
+  const g = handsCanvas.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, handsCanvas.width, handsCanvas.height);
+  if (!clockM) return;
+  g.setTransform(...clockM);
+  // the ink and pin as they look after the print grade
+  clockHands(g, 200, date, '#3B2A21', '#A9533F');
+}
 const scene = document.createElement('canvas');
 const scratch = document.createElement('canvas');
 let grader = null;
@@ -35,13 +59,17 @@ try { grader = new Grader(view, TOKENS); } catch (e) { console.warn('[kamar] no 
 const dust = new Dust(dustCanvas);
 let lastLight = null;
 
-async function render() {
+async function render(force = false) {
   const t0 = performance.now();
   const dpr = Number(q.get('dpr') || window.devicePixelRatio || 1);
   const W = Math.round(window.innerWidth * dpr), H = Math.round(window.innerHeight * dpr);
-  for (const c of [scene, scratch]) { c.width = W; c.height = H; }
   const date = now();
   const light = roomLight(date, state.loc);
+  if (handsCanvas.width !== W) { handsCanvas.width = W; handsCanvas.height = H; }
+  const sig = signature(light, date, W, H);
+  if (!force && sig === lastSig) { drawHands(date); return; }
+  lastSig = sig;
+  for (const c of [scene, scratch]) { c.width = W; c.height = H; }
   lastLight = light;
   const ctx = scene.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -55,6 +83,8 @@ async function render() {
     view.replaceWith(scene);
     scene.id = 'view';
   }
+  clockM = clockTransform(pt);
+  drawHands(date);
   dust.setup({ cam: pt.cam, panes: pt.panes, S: light.S, intensity: light.dust * (state.lowPower ? 0.5 : 1), dpr, W, H });
   dust.draw(performance.now() / 1000);
   document.documentElement.dataset.mood = light.name;
@@ -81,13 +111,13 @@ function scheduleMinute() {
 window.kamar = {
   setNowPlaying(info) { state.nowPlaying = info; render(); },
   setLowPower(on) { state.lowPower = !!on; },
-  rerender: render,
+  rerender: () => render(true),
 };
 
 let resizeT = 0;
-window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(render, 250); });
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => render(true), 250); });
 
 document.fonts.ready.then(async () => {
-  await render();
+  await render(true);
   if (!state.still) { requestAnimationFrame(loop); if (!q.get('time')) scheduleMinute(); }
 });

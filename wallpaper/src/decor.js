@@ -6,6 +6,12 @@ import * as ink from './ink.js';
 import { ROOM, planes, fillUV } from './room.js';
 import { calendarPage, clockFace, poster, corkBoard } from './printed.js';
 
+// Where the clock face lands on screen (local 400 × 400 space), for the hands layer.
+export function clockTransform(pt) {
+  const ck = DECOR.clock;
+  return pt.affine(planes.back, ck.u - ck.r, ck.v - ck.r, ck.u + ck.r, ck.v + ck.r, 400, 400);
+}
+
 const d = ROOM.d;
 export const DECOR = {
   cork: { u0: 1.2, v0: 1.32, u1: 2.3, v1: 1.94, frame: 0.032 },

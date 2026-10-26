@@ -1,0 +1,32 @@
+{
+  "name": "kertas-theme",
+  "displayName": "Kertas",
+  "description": "Ink on old paper: the Kamar desktop theme.",
+  "version": "1.0.0",
+  "publisher": "kamar",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://example.invalid/kamar"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "label": "Kertas",
+        "uiTheme": "vs",
+        "path": "./themes/kertas-color-theme.json"
+      },
+      {
+        "label": "Kertas Malam",
+        "uiTheme": "vs-dark",
+        "path": "./themes/kertas-malam-color-theme.json"
+      }
+    ]
+  }
+}

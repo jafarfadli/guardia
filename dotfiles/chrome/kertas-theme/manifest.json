@@ -1,0 +1,102 @@
+{
+  "manifest_version": 3,
+  "name": "Kertas",
+  "version": "1.0",
+  "description": "Ink on old paper, with the Kamar room on every new tab.",
+  "theme": {
+    "images": {
+      "theme_ntp_background": "images/kamar.png"
+    },
+    "colors": {
+      "frame": [
+        229,
+        214,
+        182
+      ],
+      "frame_inactive": [
+        201,
+        180,
+        143
+      ],
+      "frame_incognito": [
+        94,
+        56,
+        38
+      ],
+      "toolbar": [
+        245,
+        237,
+        219
+      ],
+      "toolbar_text": [
+        43,
+        28,
+        20
+      ],
+      "toolbar_button_icon": [
+        43,
+        28,
+        20
+      ],
+      "tab_text": [
+        43,
+        28,
+        20
+      ],
+      "tab_background_text": [
+        106,
+        82,
+        66
+      ],
+      "tab_background_text_inactive": [
+        106,
+        82,
+        66
+      ],
+      "bookmark_text": [
+        43,
+        28,
+        20
+      ],
+      "button_background": [
+        229,
+        214,
+        182
+      ],
+      "omnibox_background": [
+        238,
+        228,
+        205
+      ],
+      "omnibox_text": [
+        43,
+        28,
+        20
+      ],
+      "ntp_background": [
+        238,
+        228,
+        205
+      ],
+      "ntp_text": [
+        43,
+        28,
+        20
+      ],
+      "ntp_link": [
+        156,
+        74,
+        44
+      ],
+      "ntp_header": [
+        229,
+        214,
+        182
+      ]
+    },
+    "properties": {
+      "ntp_background_alignment": "center",
+      "ntp_background_repeat": "no-repeat"
+    }
+  }
+}

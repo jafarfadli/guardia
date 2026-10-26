@@ -171,10 +171,16 @@ export function clockFace(ctx, R, date, T) {
   ctx.font = `600 ${R * 0.09}px "Shantell Sans"`;
   ctx.fillStyle = T('#7E3B2B');
   ctx.fillText('JAYA', c, c + R * 0.3);
+  if (!clockFace.handsElsewhere) clockHands(ctx, R, date, T('#2B1C14'), T('#B04A3A'));
+}
+
+// Hands are drawn on their own little layer each minute, so the room needn't re-render.
+export function clockHands(ctx, R, date, inkCol, pinCol) {
+  const c = R;
   const hr = date.getHours() % 12 + date.getMinutes() / 60, mn = date.getMinutes();
-  hand(ctx, c, c, (hr / 12) * Math.PI * 2, R * 0.42, R * 0.07, T('#2B1C14'));
-  hand(ctx, c, c, (mn / 60) * Math.PI * 2, R * 0.66, R * 0.045, T('#2B1C14'));
-  ctx.fillStyle = T('#B04A3A');
+  hand(ctx, c, c, (hr / 12) * Math.PI * 2, R * 0.42, R * 0.07, inkCol);
+  hand(ctx, c, c, (mn / 60) * Math.PI * 2, R * 0.66, R * 0.045, inkCol);
+  ctx.fillStyle = pinCol;
   circle(ctx, c, c, R * 0.06); ctx.fill();
 }
 

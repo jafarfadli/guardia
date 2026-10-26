@@ -37,11 +37,34 @@ final class IslandController {
         tick = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.onTick() }
     }
 
+    // When a window covers the top centre (a maximised app), the quiet island steps behind
+    // it like the bar does; anything worth seeing (a new song, a toast) brings it forward.
+    private let frontLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
+    private let backLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+    private func updateLevel() {
+        let wantsFront = hover || view.peek || toastUntil != nil
+        var covered = false
+        if !wantsFront, let screen = NSScreen.main,
+           let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
+            let zone = CGRect(x: screen.frame.midX - 120, y: 0, width: 240, height: 40) // CG coords: origin top-left
+            let me = ProcessInfo.processInfo.processIdentifier
+            for w in list {
+                guard (w[kCGWindowLayer as String] as? Int) == 0, (w[kCGWindowOwnerPID as String] as? Int32) != me,
+                      let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { continue }
+                let r = CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
+                if r.intersects(zone) && r.width > 200 { covered = true; break }
+            }
+        }
+        let level = covered ? backLevel : frontLevel
+        if panel.level != level { panel.level = level }
+    }
+
     func stop() { panel.orderOut(nil); tick?.invalidate() }
 
     private var frameCount = 0
     private func onTick() {
         frameCount += 1
+        if frameCount % 10 == 0 { updateLevel() }
         if let until = toastUntil, Date() > until { toastUntil = nil; refresh() }
         // redraw only while something is moving
         let moving = (nowPlaying?.playing ?? false) || timer?.running == true
@@ -72,7 +95,7 @@ final class IslandController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in self?.view.peek = false; self?.refresh() }
     }
 
-    func refresh() { layout(animated: true); view.needsDisplay = true }
+    func refresh() { layout(animated: true); view.needsDisplay = true; updateLevel() }
 
     func setHover(_ h: Bool) {
         collapseWork?.cancel()

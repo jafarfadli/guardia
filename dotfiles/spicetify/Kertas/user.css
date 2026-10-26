@@ -1,0 +1,15 @@
+/* Kertas for Spotify (Spicetify): ink on old paper. Colours come from color.ini. */
+body, button, input, .main-type-alto, .main-type-canon, .main-type-cello, .main-type-mesto, .main-type-ballad, .main-type-finale {
+  font-family: "Shantell Sans", var(--font-family, sans-serif) !important;
+}
+/* cards and panels: a paper sheet with an inked edge and one hard step of blue-grey shadow */
+.main-card-card, .Root__nav-bar > nav, .main-yourLibraryX-library, .Root__right-sidebar aside {
+  border: 2px solid var(--spice-text) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 3px 0 rgba(var(--spice-rgb-shadow), 0.45) !important;
+}
+.main-card-card { background: var(--spice-card) !important; }
+.main-nowPlayingBar-nowPlayingBar, .Root__now-playing-bar footer { border-top: 2px solid var(--spice-text) !important; }
+/* progress and volume bars read as an ink rule with a mustard run */
+.progress-bar { --fg-color: #C38F33 !important; --bg-color: rgba(var(--spice-rgb-text), 0.25) !important; }
+::selection { background: var(--spice-tab-active); color: var(--spice-text); }

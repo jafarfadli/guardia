@@ -15,6 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var islandOn: Bool { get { prefs.object(forKey: "island") as? Bool ?? true } set { prefs.set(newValue, forKey: "island") } }
 
     func applicationDidFinishLaunching(_ note: Notification) {
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "--set-wallpaper"), i + 1 < args.count {
+            DesktopPicture.set(URL(fileURLWithPath: args[i + 1]))
+            exit(0)
+        }
+        if args.contains("--restore-wallpaper") { DesktopPicture.restore(); exit(0) }
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
             island.timer = focus
             Snapshot.run(into: CommandLine.arguments[i + 1], delegate: self)
@@ -138,5 +144,30 @@ extension AppDelegate: NSMenuDelegate {
         let fresh = buildMenu()
         menu.removeAllItems()
         for i in fresh.items { fresh.removeItem(i); menu.addItem(i) }
+    }
+}
+
+// The still of the room as the system desktop picture (lock screen, Mission Control),
+// remembering what was there before so uninstall can put it back.
+enum DesktopPicture {
+    static let key = "previousDesktopPictures"
+    static func set(_ url: URL) {
+        let ws = NSWorkspace.shared
+        var previous = UserDefaults.standard.dictionary(forKey: key) as? [String: String] ?? [:]
+        for screen in NSScreen.screens {
+            let id = String(screen.displayID ?? 0)
+            if previous[id] == nil, let cur = ws.desktopImageURL(for: screen), cur != url { previous[id] = cur.path }
+            try? ws.setDesktopImageURL(url, for: screen, options: [.imageScaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue, .allowClipping: true])
+        }
+        UserDefaults.standard.set(previous, forKey: key)
+    }
+    static func restore() {
+        let ws = NSWorkspace.shared
+        let previous = UserDefaults.standard.dictionary(forKey: key) as? [String: String] ?? [:]
+        for screen in NSScreen.screens {
+            guard let path = previous[String(screen.displayID ?? 0)] ?? previous.values.first else { continue }
+            try? ws.setDesktopImageURL(URL(fileURLWithPath: path), for: screen, options: [:])
+        }
+        UserDefaults.standard.removeObject(forKey: key)
     }
 }
