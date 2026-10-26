@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "bar/index.html"
+        ],
+        "createdAt": "2026-10-26T07:08:35.475Z",
+        "reason": "assistant: internal icon-render page; its background mirrors the SketchyBar paper tag (#F5EDDB from design/tokens.json), and the user's binding DESIGN.md pins a cream paper tint"
+      }
+    ]
+  }
+}

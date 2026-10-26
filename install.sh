@@ -21,7 +21,10 @@ brew bundle --file="$ROOT/Brewfile" --no-upgrade
 say "Membangun app Kamar (wallpaper hidup, dynamic island, si Oren)"
 "$ROOT/kamar-app/build.sh"
 mkdir -p $HOME/Applications
+# stop the agent first, or launchd relaunches Kamar mid-copy and macOS locks the bundle
+launchctl bootout gui/$UID/id.kamar.app 2>/dev/null || true
 pkill -x Kamar 2>/dev/null || true
+sleep 1
 rm -rf $HOME/Applications/Kamar.app
 cp -R "$ROOT/build/app/Kamar.app" $HOME/Applications/
 
