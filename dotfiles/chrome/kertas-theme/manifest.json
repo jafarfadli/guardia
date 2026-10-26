@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Kertas",
   "version": "1.0",
-  "description": "Ink on old paper, with the Kamar room on every new tab.",
+  "description": "Ink on old paper, with the Guardia room on every new tab.",
   "theme": {
     "images": {
       "theme_ntp_background": "images/kamar.png"

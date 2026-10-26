@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const file = join(homedir(), 'Library/Application Support/Code/User/settings.json');
-const backup = join(homedir(), '.kamar/backup/vscode-settings.json');
+const backup = join(homedir(), '.guardia/backup/vscode-settings.json');
 const MONO = "'FantasqueSansM Nerd Font Mono', Menlo, monospace";
 const WANT = {
   'window.autoDetectColorScheme': true,
@@ -30,7 +30,7 @@ const mode = process.argv[2];
 const settings = read();
 if (mode === 'apply') {
   if (!existsSync(backup)) {
-    mkdirSync(join(homedir(), '.kamar/backup'), { recursive: true });
+    mkdirSync(join(homedir(), '.guardia/backup'), { recursive: true });
     const old = {};
     for (const k of Object.keys(WANT)) old[k] = k in settings ? settings[k] : null;
     writeFileSync(backup, JSON.stringify(old, null, 2));

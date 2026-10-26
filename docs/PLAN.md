@@ -1,4 +1,4 @@
-# Kamar — build plan
+# Guardia — build plan
 
 Desktop = one lived-in room, drawn as a comic printed on old paper (DESIGN.md).
 Decisions are recorded in PRODUCT.md. Each stage ended with a look at the real render.
@@ -14,10 +14,10 @@ Decisions are recorded in PRODUCT.md. Each stage ended with a look at the real r
 - [x] Room: window with sill plants and a city view, gingham curtains, desk (lamp, monitor, mug, books, cactus), chair with cardigan, bookshelf, guitar, record crate (now-playing sleeve), monstera, kilim rug, cat bed, cork board, tear-off calendar (live, with pasaran), wall clock (live), gig poster (pixel-art singer), string lights, pendant lamp
 - [x] Budget: re-render only when the light changes; clock hands on their own layer; dust animates only in the beam
 
-## Stage 3 — Kamar app (`kamar-app/`)
+## Stage 3 — Guardia app (`guardia-app/`, formerly Kamar)
 - [x] Desktop-level wallpaper host per screen (custom URL scheme for ES modules)
 - [x] Paper island: idle, music (pixel cover, controls), timer, toasts; steps behind maximised windows
-- [x] si Oren: sprite pipeline from `pet/`, walk/idle/tap/purr/sleep/stretch/dangle, typing via idle-time API
+- [x] Maestro (formerly si Oren): sprite pipeline from `pet/`, walk/idle/tap/purr/sleep/stretch/dangle, typing via idle-time API
 - [x] Build with the CLT module-map workaround; LaunchAgent; `--snapshot` for checking surfaces offscreen
 
 ## Stage 4 — Bar and windows
@@ -34,4 +34,4 @@ Decisions are recorded in PRODUCT.md. Each stage ended with a look at the real r
 
 ## Later
 - Ask for a screenshot to tune the bar and island against the live desktop
-- Guitar/record-player idle animations for si Oren; a cat that naps in the wallpaper's cat bed
+- Guitar/record-player idle animations for Maestro; a cat that naps in the wallpaper's cat bed

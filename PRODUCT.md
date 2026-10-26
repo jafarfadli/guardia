@@ -10,7 +10,7 @@ web
 
 Confirmed in the brainstorming round (2026-10-26):
 - Wallpaper: live HTML (canvas 2D scene + WebGL grade), hosted full-screen behind the desktop.
-- Island and pet: one native Swift menu-bar app ("Kamar"), sprites pre-rendered from the same art pipeline so runtime stays light (the Mac has 8 GB RAM).
+- Island and pet: one native Swift menu-bar app ("Guardia", called Kamar until revision round 5), sprites pre-rendered from the same art pipeline so runtime stays light (the Mac has 8 GB RAM).
 - Menu bar: the macOS menu bar auto-hides; the island carries the time and battery (SketchyBar was retired in revision round 3).
 - Windows: floating, outlined by JankyBorders; macOS 26 native tiling instead of a tiling manager.
 - App themes: VS Code + Ghostty terminal, Chrome, Spotify (Spicetify). Discord excluded (client mods break its ToS).

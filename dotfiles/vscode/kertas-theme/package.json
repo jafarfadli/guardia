@@ -1,9 +1,9 @@
 {
   "name": "kertas-theme",
   "displayName": "Kertas",
-  "description": "Ink on old paper: the Kamar desktop theme.",
+  "description": "Ink on old paper: the Guardia desktop theme.",
   "version": "1.0.0",
-  "publisher": "kamar",
+  "publisher": "guardia",
   "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
@@ -13,7 +13,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://example.invalid/kamar"
+    "url": "https://example.invalid/guardia"
   },
   "contributes": {
     "themes": [

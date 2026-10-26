@@ -7,6 +7,6 @@ options=(
   hidpi=on
   active_color=0xf22b1c14
   inactive_color=0x592b1c14
-  blacklist="Kamar,Screenshot,screencaptureui"
+  blacklist="Guardia,Screenshot,screencaptureui"
 )
 borders "${options[@]}"

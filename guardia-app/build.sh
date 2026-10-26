@@ -1,12 +1,12 @@
 #!/bin/zsh
-# Builds Kamar.app with the Command Line Tools' swiftc.
+# Builds Guardia.app with the Command Line Tools' swiftc.
 # The CLT on this Mac carries a stale usr/include/swift/module.modulemap that redefines
 # SwiftBridging; a VFS overlay hides it from the compiler without touching the system.
 set -euo pipefail
 here=${0:A:h}
 root=${here:h}
 build=$root/build/app
-app=$build/Kamar.app
+app=$build/Guardia.app
 mkdir -p $build
 overlay=$build/overlay.yaml
 : > $build/empty.modulemap
@@ -20,7 +20,7 @@ if [[ -f /Library/Developer/CommandLineTools/usr/include/swift/bridging.modulema
 fi
 rm -rf $app
 mkdir -p $app/Contents/MacOS $app/Contents/Resources
-swiftc -O -target arm64-apple-macos14.0 $flags $here/Sources/*.swift -o $app/Contents/MacOS/Kamar
+swiftc -O -target arm64-apple-macos14.0 $flags $here/Sources/*.swift -o $app/Contents/MacOS/Guardia
 cp $here/Info.plist $app/Contents/Info.plist
 # web wallpaper and pet sprites travel inside the bundle
 mkdir -p $app/Contents/Resources/wallpaper

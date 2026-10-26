@@ -307,7 +307,7 @@ export function corkBoard(ctx, w, h, T, date) {
     c.beginPath(); c.arc(52, 66, 24, 0, Math.PI * 2); c.stroke();
     c.beginPath(); c.moveTo(34, 50); c.lineTo(36, 30); c.lineTo(50, 44); c.moveTo(56, 42); c.lineTo(68, 28); c.lineTo(72, 50); c.stroke();
     c.beginPath(); c.moveTo(130, 100); c.quadraticCurveTo(160, 80, 150, 50); c.stroke();
-    c.fillStyle = T('#2B1C14'); c.font = `700 20px "Shantell Sans"`; c.fillText('si Oren', 88, 148);
+    c.fillStyle = T('#2B1C14'); c.font = `700 20px "Shantell Sans"`; c.fillText('Maestro', 88, 148);
   }));
   // a sticky note with a phone number
   items.push(() => paper(ctx, 880, 60, 160, 150, 0.08, T('#D9A9A0'), (c) => {

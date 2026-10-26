@@ -1,4 +1,4 @@
-// si Oren, chibi edition: a round orange tabby drawn in the room's ink.
+// Maestro, chibi edition: a round orange tabby drawn in the room's ink.
 // The whole cat is one silhouette: every part is inked first with a wide stroke, then all parts
 // are filled on top, so only the outer contour keeps its ink and nothing looks bolted on.
 import { catmull, stroke, setInk } from '../wallpaper/src/ink.js';

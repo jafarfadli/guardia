@@ -1,9 +1,23 @@
 #!/bin/zsh
-# Kamar: installs the whole desktop (safe to run again). Undo everything with ./uninstall.sh.
+# Guardia: installs the whole desktop (safe to run again). Undo everything with ./uninstall.sh.
 set -euo pipefail
 ROOT=${0:A:h}
-STATE=$HOME/.kamar
+STATE=$HOME/.guardia
 BACKUP=$STATE/backup
+
+# The app used to be called Kamar: carry its backups and settings over, and take it down.
+if [[ -d $HOME/.kamar && ! -e $STATE ]]; then
+  mv $HOME/.kamar $STATE
+  [[ -f $BACKUP/moved.tsv ]] && sed -i '' "s|$HOME/.kamar/|$STATE/|g" $BACKUP/moved.tsv
+fi
+launchctl bootout gui/$UID/id.kamar.app 2>/dev/null || true
+rm -f $HOME/Library/LaunchAgents/id.kamar.app.plist
+pkill -x Kamar 2>/dev/null || true
+rm -rf $HOME/Applications/Kamar.app
+if defaults read id.kamar.app >/dev/null 2>&1 && ! defaults read id.guardia.app >/dev/null 2>&1; then
+  defaults export id.kamar.app - | defaults import id.guardia.app -
+  defaults delete id.kamar.app >/dev/null 2>&1 || true
+fi
 mkdir -p $BACKUP
 
 say() { print -r -- "==> $*" }
@@ -16,19 +30,19 @@ say "Memasang paket lewat Homebrew"
 brew trust --formula felixkratz/formulae/borders >/dev/null 2>&1 || true
 brew bundle --file="$ROOT/Brewfile" --no-upgrade
 
-# ------------------------------------------------------------------ 2. the Kamar app
-say "Membangun app Kamar (wallpaper hidup, dynamic island, si Oren)"
-"$ROOT/kamar-app/build.sh"
+# ------------------------------------------------------------------ 2. the Guardia app
+say "Membangun app Guardia (wallpaper hidup, dynamic island, Maestro)"
+"$ROOT/guardia-app/build.sh"
 mkdir -p $HOME/Applications
-# stop the agent first, or launchd relaunches Kamar mid-copy and macOS locks the bundle
-launchctl bootout gui/$UID/id.kamar.app 2>/dev/null || true
-pkill -x Kamar 2>/dev/null || true
+# stop the agent first, or launchd relaunches Guardia mid-copy and macOS locks the bundle
+launchctl bootout gui/$UID/id.guardia.app 2>/dev/null || true
+pkill -x Guardia 2>/dev/null || true
 sleep 1
-rm -rf $HOME/Applications/Kamar.app
-cp -R "$ROOT/build/app/Kamar.app" $HOME/Applications/
+rm -rf $HOME/Applications/Guardia.app
+cp -R "$ROOT/build/app/Guardia.app" $HOME/Applications/
 
 # ------------------------------------------------------------------ 3. dotfiles
-# symlinks into this folder; whatever was there before moves to ~/.kamar/backup
+# symlinks into this folder; whatever was there before moves to ~/.guardia/backup
 link() {
   local src=$1 dst=$2
   mkdir -p ${dst:h}
@@ -79,28 +93,28 @@ killall SystemUIServer 2>/dev/null || true
 say "Menyalakan JankyBorders"
 brew services restart felixkratz/formulae/borders >/dev/null
 
-# ------------------------------------------------------------------ 6. Kamar at login
-say "Menjalankan Kamar sekarang dan setiap login"
-plist=$HOME/Library/LaunchAgents/id.kamar.app.plist
+# ------------------------------------------------------------------ 6. Guardia at login
+say "Menjalankan Guardia sekarang dan setiap login"
+plist=$HOME/Library/LaunchAgents/id.guardia.app.plist
 mkdir -p ${plist:h}
 cat > $plist <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>id.kamar.app</string>
-  <key>ProgramArguments</key><array><string>$HOME/Applications/Kamar.app/Contents/MacOS/Kamar</string></array>
+  <key>Label</key><string>id.guardia.app</string>
+  <key>ProgramArguments</key><array><string>$HOME/Applications/Guardia.app/Contents/MacOS/Guardia</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>ProcessType</key><string>Interactive</string>
 </dict>
 </plist>
 PLIST
-launchctl bootout gui/$UID/id.kamar.app 2>/dev/null || true
+launchctl bootout gui/$UID/id.guardia.app 2>/dev/null || true
 launchctl bootstrap gui/$UID $plist
 
 # the same room as the system picture (lock screen, Mission Control)
-$HOME/Applications/Kamar.app/Contents/MacOS/Kamar --set-wallpaper $ROOT/dotfiles/wallpaper/kamar-sore.jpg || true
+$HOME/Applications/Guardia.app/Contents/MacOS/Guardia --set-wallpaper $ROOT/dotfiles/wallpaper/kamar-sore.jpg || true
 
 # ------------------------------------------------------------------ 7. VS Code
 CODE="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
@@ -108,6 +122,7 @@ if [[ -x $CODE ]]; then
   say "Memasang tema Kertas untuk VS Code"
   mkdir -p $ROOT/build
   (cd $ROOT/dotfiles/vscode/kertas-theme && npx --yes @vscode/vsce@3 package --allow-missing-repository --skip-license -o $ROOT/build/kertas.vsix >/dev/null)
+  "$CODE" --uninstall-extension kamar.kertas-theme >/dev/null 2>&1 || true   # the theme's old publisher
   "$CODE" --install-extension $ROOT/build/kertas.vsix --force >/dev/null
   node $ROOT/scripts/vscode-settings.mjs apply
 fi

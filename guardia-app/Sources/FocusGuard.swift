@@ -1,6 +1,6 @@
 import AppKit
 
-// Focus mode. While it's on, si Oren keeps an eye on Chrome: when the tab you're looking at is
+// Focus mode. While it's on, Maestro keeps an eye on Chrome: when the tab you're looking at is
 // Instagram, TikTok, YouTube or X, he runs over, jumps onto the tab and waits five seconds. The
 // island offers "biarin" (that site is fine for ten minutes); otherwise he swipes the tab shut.
 // Chrome is only asked while it is the frontmost app, so focus mode never launches it.
@@ -109,7 +109,7 @@ final class FocusGuard {
             let close = { [weak self] in
                 AppleScript.run("tell application \"Google Chrome\" to close (every tab of (window id \(v.tab.windowID)) whose id is \(v.tab.tabID))")
                 self?.finish()
-                self?.island?.showToast(icon: "cat", text: "si Oren menutup \(v.name)", seconds: 3.5)
+                self?.island?.showToast(icon: "cat", text: "Maestro menutup \(v.name)", seconds: 3.5)
             }
             if let pet = self.pet, pet.isPerched { pet.swipe(then: close) } else { close() }
         }

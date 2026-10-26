@@ -1,6 +1,6 @@
 import AppKit
 
-// si Oren lives on the floor line (the top of the Dock, or the bottom of the screen when the
+// Maestro lives on the floor line (the top of the Dock, or the bottom of the screen when the
 // Dock hides). Sprites come from pet/ (rendered by scripts/render-assets.mjs).
 final class PetController {
     // One sheet per animation; frames are picked with contentsRect so the sheet uploads once.
@@ -40,7 +40,8 @@ final class PetController {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        // every desktop, but not over apps in full screen
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
         view = PetView(frame: panel.contentRect(forFrameRect: panel.frame))
@@ -68,7 +69,12 @@ final class PetController {
     }
 
     // ------------------------------------------------------------------ lifecycle
+    private(set) var running = false
+    private var watchdog: Timer?
+
     func start() {
+        guard !running else { return }
+        running = true
         let s = size
         panel.setContentSize(s)
         view.frame = CGRect(origin: .zero, size: s)
@@ -78,11 +84,32 @@ final class PetController {
         place()
         panel.orderFrontRegardless()
         last = CACurrentMediaTime()
+        interval = 0
         schedule(1.0 / 20)
         set(.idle, for: 3)
+        // if the loop ever stops ticking (it froze once after an off/on), start it again
+        watchdog = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            guard let self, self.running, CACurrentMediaTime() - self.last > 2 else { return }
+            self.interval = 0
+            self.schedule(1.0 / 10)
+        }
+        watchdog?.tolerance = 1
     }
 
-    func stop() { loop?.invalidate(); panel.orderOut(nil) }
+    func stop() {
+        guard running else { return }
+        running = false
+        loop?.invalidate(); loop = nil
+        watchdog?.invalidate(); watchdog = nil
+        interval = 0
+        visitTo = nil; onPerched = nil; onPulledAway = nil; afterSwipe = nil
+        panel.orderOut(nil)
+    }
+
+    /// For `guardia://status`: what Maestro is doing and when his loop last ticked.
+    var debugState: [String: Any] {
+        ["running": running, "state": "\(state)", "x": Double(pos.x), "y": Double(pos.y), "lastTickAgo": CACurrentMediaTime() - last, "onActiveSpace": panel.isOnActiveSpace]
+    }
 
     // 20 Hz while moving, 10 Hz otherwise (still quick enough to catch every keypress)
     private var interval: Double = 0
@@ -114,7 +141,7 @@ final class PetController {
     // ------------------------------------------------------------------ focus-mode visits
     var isPerched: Bool { state == .perch }
 
-    func canReach(_ feet: CGPoint) -> Bool { screen.frame.insetBy(dx: 4, dy: 4).contains(feet) && panel.isVisible }
+    func canReach(_ feet: CGPoint) -> Bool { running && panel.isOnActiveSpace && screen.frame.insetBy(dx: 4, dy: 4).contains(feet) }
 
     /// Run along the floor until under `feet`, leap up and perch there (feet in screen coordinates).
     func investigate(_ feet: CGPoint, perched: @escaping () -> Void, pulledAway: @escaping () -> Void) {
@@ -296,7 +323,7 @@ final class PetController {
         shown = (anim, frame, facing, p)
     }
 
-    // For `Kamar --snapshot`: the sprite layer showing one frame, rendered off screen at 2x.
+    // For `Guardia --snapshot`: the sprite layer showing one frame, rendered off screen at 2x.
     func snapshot(_ name: String, frame i: Int) -> CGImage? {
         anim = name; frame = i
         sprite.frame = CGRect(origin: .zero, size: size)

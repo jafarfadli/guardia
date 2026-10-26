@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch kind {
             case .focus:
                 self.focusGuard.end()
-                self.ring(title: "Fokus selesai", subtitle: "si Oren bangga. Istirahat sebentar?",
+                self.ring(title: "Fokus selesai", subtitle: "Maestro bangga. Istirahat sebentar?",
                           action: ("istirahat 5 menit", { [weak self] in self?.focus.start(seconds: 300, kind: .rest) }))
             case .rest:
                 self.ring(title: "Istirahat selesai", subtitle: "lanjut yuk", action: ("fokus 25 menit", { [weak self] in self?.focusGuard.begin(minutes: 25) }))
@@ -101,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.menu = buildMenu()
     }
 
-    /// The island rings with a bell until dismissed (a minute at most); si Oren gets excited.
+    /// The island rings with a bell until dismissed (a minute at most); Maestro gets excited.
     private var ringID = 0
     private func ring(title: String, subtitle: String, action: (String, () -> Void)?) {
         ringID += 1
@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 62) { stop() }
     }
 
-    // kamar://focus/25 · kamar://rest/5 · kamar://stop · kamar://pet/come
+    // guardia://focus/25 · guardia://rest/5 · guardia://stop · guardia://pet/come
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             let parts = ([url.host ?? ""] + url.pathComponents.filter { $0 != "/" })
@@ -124,9 +124,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case "focus": focusGuard.begin(minutes: Int(parts.dropFirst().first ?? "25") ?? 25)
             case "rest": focus.start(minutes: Int(parts.dropFirst().first ?? "5") ?? 5, rest: true)
             case "stop": launcher.stopTimer()
-            case "search": island.openSearch()
-            case "pet": pet.comeHere()
+            case "search": openSearch()
+            case "pet":
+                switch parts.dropFirst().first {
+                case "on": setPet(true)
+                case "off": setPet(false)
+                default: callPet()
+                }
+            case "wallpaper":
+                switch parts.dropFirst().first {
+                case "on": setWallpaper(true)
+                case "off": setWallpaper(false)
+                default: wallpaper.verify()
+                }
+            case "island":
+                switch parts.dropFirst().first {
+                case "off": setIsland(false)
+                default: setIsland(true)
+                }
             case "playpause": music.playPause()
+            case "status": writeStatus()
             default: break
             }
         }
@@ -147,24 +164,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         m.addItem(item("Istirahat 5 menit", #selector(startRest(_:)), 5))
         if focus.running || focusGuard.on { m.addItem(item("Hentikan timer dan mode fokus", #selector(stopTimer))) }
         m.addItem(.separator())
-        m.addItem(item("Panggil si Oren", #selector(callPet)))
-        m.addItem(item("si Oren", #selector(togglePet), on: petOn))
+        m.addItem(item("Panggil Maestro", #selector(callPet)))
+        m.addItem(item("Maestro", #selector(togglePet), on: petOn))
         m.addItem(item("Dynamic island", #selector(toggleIsland), on: islandOn))
         m.addItem(item("Wallpaper hidup", #selector(toggleWallpaper), on: wallpaperOn))
         m.addItem(.separator())
-        m.addItem(item("Keluar dari Kamar", #selector(quit)))
+        m.addItem(item("Keluar dari Guardia", #selector(quit)))
         m.delegate = self
         return m
     }
 
-    @objc private func openSearch() { island.openSearch() }
+    @objc private func openSearch() {
+        if !islandOn { setIsland(true) }
+        island.openSearch()
+    }
     @objc private func startFocus(_ s: NSMenuItem) { focusGuard.begin(minutes: s.tag) }
     @objc private func startRest(_ s: NSMenuItem) { focus.start(minutes: s.tag, rest: true) }
     @objc private func stopTimer() { launcher.stopTimer() }
     @objc private func callPet() { if petOn { pet.comeHere() } }
-    @objc private func togglePet() { petOn.toggle(); petOn ? pet.start() : pet.stop() }
-    @objc private func toggleIsland() { islandOn.toggle(); islandOn ? island.start() : island.stop() }
-    @objc private func toggleWallpaper() { wallpaperOn.toggle(); wallpaperOn ? wallpaper.start() : wallpaper.stop() }
+    @objc private func togglePet() { setPet(!petOn) }
+    @objc private func toggleIsland() { setIsland(!islandOn) }
+    @objc private func toggleWallpaper() { setWallpaper(!wallpaperOn) }
+
+    private func setPet(_ on: Bool) { petOn = on; on ? pet.start() : pet.stop() }
+    private func setIsland(_ on: Bool) { islandOn = on; on ? island.start() : island.stop() }
+    private func setWallpaper(_ on: Bool) {
+        wallpaperOn = on
+        if on { wallpaper.start(); wallpaper.setNowPlaying(music.track) } else { wallpaper.stop() }
+    }
+
+    /// guardia://status writes what each part is doing to ~/.guardia/status.json (for checking from a terminal).
+    private func writeStatus() {
+        let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".guardia")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let s: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "pet": pet.debugState, "wallpaper": wallpaper.debugState,
+                                "island": ["running": island.running, "searching": island.searching], "focus": focusGuard.on, "timer": focus.running,
+                                "alarms": alarms.list.count]
+        if let d = try? JSONSerialization.data(withJSONObject: s, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: dir.appendingPathComponent("status.json")) }
+    }
     @objc private func quit() { NSApp.terminate(nil) }
 
     static func catIcon() -> NSImage {

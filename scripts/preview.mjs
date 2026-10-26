@@ -45,8 +45,8 @@ try {
       const url = `http://127.0.0.1:${port}/${page}?still=1&view=${view}&time=${time}${flag('raw') ? '&raw=1' : ''}${extra ? '&' + extra : ''}`;
       const t0 = Date.now();
       await tab.goto(url, { waitUntil: 'load' });
-      await tab.waitForFunction('window.__kamar && window.__kamar.ready', { timeout: 60000 });
-      const info = await tab.evaluate(() => ({ ...window.__kamar.light, ms: window.__kamar.ms }));
+      await tab.waitForFunction('window.__guardia && window.__guardia.ready', { timeout: 60000 });
+      const info = await tab.evaluate(() => ({ ...window.__guardia.light, ms: window.__guardia.ms }));
       const file = join(outDir, `${view}-${time.replace(':', '')}${flag('raw') ? '-raw' : ''}.png`);
       await tab.screenshot({ path: file });
       console.log(`${file}  ${info?.name ?? ''} elev=${info?.elevation?.toFixed?.(1)}  render=${info?.ms}ms`);

@@ -1,17 +1,20 @@
 #!/bin/zsh
-# Kamar: puts the desktop back the way it was before install.sh.
+# Guardia: puts the desktop back the way it was before install.sh.
 # Homebrew packages stay installed (remove them with: brew bundle cleanup --file=Brewfile --force).
 set -uo pipefail
 ROOT=${0:A:h}
-BACKUP=$HOME/.kamar/backup
+BACKUP=$HOME/.guardia/backup
+[[ -d $BACKUP ]] || BACKUP=$HOME/.kamar/backup   # installs from before the rename
 say() { print -r -- "==> $*" }
 
-say "Mematikan Kamar"
-$HOME/Applications/Kamar.app/Contents/MacOS/Kamar --restore-wallpaper 2>/dev/null
-launchctl bootout gui/$UID/id.kamar.app 2>/dev/null
-rm -f $HOME/Library/LaunchAgents/id.kamar.app.plist
-pkill -x Kamar 2>/dev/null
-rm -rf $HOME/Applications/Kamar.app
+say "Mematikan Guardia"
+$HOME/Applications/Guardia.app/Contents/MacOS/Guardia --restore-wallpaper 2>/dev/null || $HOME/Applications/Kamar.app/Contents/MacOS/Kamar --restore-wallpaper 2>/dev/null
+for label in id.guardia.app id.kamar.app; do
+  launchctl bootout gui/$UID/$label 2>/dev/null
+  rm -f $HOME/Library/LaunchAgents/$label.plist
+done
+pkill -x Guardia 2>/dev/null; pkill -x Kamar 2>/dev/null
+rm -rf $HOME/Applications/Guardia.app $HOME/Applications/Kamar.app
 
 say "Mematikan JankyBorders"
 brew services stop felixkratz/formulae/sketchybar >/dev/null 2>&1  # from installs before the bar was retired
@@ -44,6 +47,7 @@ CODE="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
 if [[ -x $CODE ]]; then
   say "Mengembalikan VS Code"
   node $ROOT/scripts/vscode-settings.mjs restore
+  "$CODE" --uninstall-extension guardia.kertas-theme >/dev/null 2>&1
   "$CODE" --uninstall-extension kamar.kertas-theme >/dev/null 2>&1
 fi
 
@@ -53,5 +57,5 @@ if command -v spicetify >/dev/null; then
   rm -f $HOME/.config/spicetify/Themes/Kertas
 fi
 
-rm -rf $HOME/.kamar
+rm -rf $HOME/.guardia $HOME/.kamar
 say "Beres. Tema Chrome (kalau dipasang) dilepas dari chrome://extensions."

@@ -31,6 +31,25 @@ enum Projects {
         return list
     }
 
+    /// Every folder in ~/Koding: the ones opened lately in VS Code first, the rest by name.
+    static let koding = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Koding")
+    static func all() -> [Project] {
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(at: koding, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+        let folders = names.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+        let byPath = Dictionary(folders.map { ($0.standardizedFileURL.path, $0) }, uniquingKeysWith: { a, _ in a })
+        var out: [Project] = []
+        var seen = Set<String>()
+        for p in recent() where byPath[p.url.standardizedFileURL.path] != nil {
+            out.append(p); seen.insert(p.url.standardizedFileURL.path)
+        }
+        for f in folders.sorted(by: { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending })
+        where !seen.contains(f.standardizedFileURL.path) {
+            out.append(Project(name: f.lastPathComponent, url: f))
+        }
+        return out
+    }
+
     private static func walk(_ node: Any, _ visit: ([String: Any]) -> Void) {
         if let d = node as? [String: Any] { visit(d); d.values.forEach { walk($0, visit) } }
         else if let a = node as? [Any] { a.forEach { walk($0, visit) } }
@@ -74,14 +93,14 @@ enum Projects {
 }
 
 // AppleScript off the main thread, one script at a time. Each app asks once for permission
-// ("Kamar ingin mengontrol …").
+// ("Guardia ingin mengontrol …").
 enum AppleScript {
-    private static let queue = DispatchQueue(label: "id.kamar.applescript", qos: .userInitiated)
+    private static let queue = DispatchQueue(label: "id.guardia.applescript", qos: .userInitiated)
     static func run(_ src: String, done: ((String?) -> Void)? = nil) {
         queue.async {
             var err: NSDictionary?
             let out = NSAppleScript(source: src)?.executeAndReturnError(&err).stringValue
-            if let err { NSLog("[kamar] applescript: %@", err) }
+            if let err { NSLog("[guardia] applescript: %@", err) }
             if let done { DispatchQueue.main.async { done(out) } }
         }
     }

@@ -26,7 +26,7 @@ function now() {
 const view = document.getElementById('view');
 const scene = document.createElement('canvas');
 let grader = null;
-try { grader = new Grader(view, TOKENS); } catch (e) { console.warn('[kamar] no WebGL2, showing the ungraded room', e); }
+try { grader = new Grader(view, TOKENS); } catch (e) { console.warn('[guardia] no WebGL2, showing the ungraded room', e); }
 const dust = new Dust(document.getElementById('dust'));
 
 let meta = null;
@@ -96,7 +96,7 @@ async function render() {
   }
   dust.setup(a.beam.map(px).map(([x, y]) => [x / dpr, y / dpr]), a.sunI * (state.lowPower ? 0.5 : 1));
   document.documentElement.dataset.mood = light.name;
-  window.__kamar = { light: { name: light.name, elevation: light.elevation, phase: light.phase, frame: a.file }, ms: Math.round(performance.now() - t0), ready: true };
+  window.__guardia = { light: { name: light.name, elevation: light.elevation, phase: light.phase, frame: a.file }, ms: Math.round(performance.now() - t0), ready: true };
 }
 
 function scheduleMinute() {
@@ -104,7 +104,7 @@ function scheduleMinute() {
   setTimeout(async () => { await render(); scheduleMinute(); }, ms);
 }
 
-window.kamar = {
+window.guardia = {
   setNowPlaying(info) { state.nowPlaying = info; render(); },
   setLowPower(on) { state.lowPower = !!on; document.documentElement.classList.toggle('lowpower', state.lowPower); },
   rerender: () => render(),

@@ -1,4 +1,4 @@
-// Renders the pet's sprite sheets (and other raster assets) into kamar-app/Resources.
+// Renders the pet's sprite sheets (and other raster assets) into guardia-app/Resources.
 import http from 'node:http';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { extname, join, dirname } from 'node:path';
@@ -24,7 +24,7 @@ try {
   await tab.goto(`http://127.0.0.1:${port}/pet/index.html?scale=2`, { waitUntil: 'load' });
   await tab.waitForFunction('window.__sprites', { timeout: 60000 });
   const sprites = await tab.evaluate(() => window.__sprites);
-  const outDir = join(root, 'kamar-app/Resources/pet');
+  const outDir = join(root, 'guardia-app/Resources/pet');
   await mkdir(outDir, { recursive: true });
   const meta = { cell: sprites.cell, anims: {} };
   for (const [name, a] of Object.entries(sprites.anims)) {

@@ -1,6 +1,6 @@
-# Handoff — Kamar desktop
+# Handoff — Guardia desktop
 
-Read this first if you are picking up the work in a new session. Last updated: 2026-10-26. Revision rounds 2 (Blender room, chibi si Oren), 3 (crisp lines, light through the window, text margins) and 4 (bar retired, island search, focus mode) have shipped. Waiting on the user's feedback.
+Read this first if you are picking up the work in a new session. Last updated: 2026-10-26 (night). Revision rounds 2–5 have shipped; round 5 renamed the app **Kamar → Guardia** and the cat **si Oren → Maestro**. Waiting on the user's feedback.
 
 ## What the user wants
 
@@ -10,14 +10,14 @@ Machine: MacBook Air M1, **no notch**, 8 GB RAM, macOS 26.3, normally Dark mode.
 
 ## What is installed and running now
 
-`./install.sh` installed it and `./uninstall.sh` reverts everything from `~/.kamar/backup`.
+`./install.sh` installed it and `./uninstall.sh` reverts everything from `~/.guardia/backup`.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Kamar.app (Swift) | `kamar-app/`, installed to `~/Applications/Kamar.app`, LaunchAgent `id.kamar.app` | Hosts the wallpaper (WKWebView at desktop level), the paper **island**, and the **pet si Oren** |
+| Guardia.app (Swift) | `guardia-app/`, installed to `~/Applications/Guardia.app`, bundle id and LaunchAgent `id.guardia.app`, URL scheme `guardia://` | Hosts the wallpaper (WKWebView at desktop level), the paper **island**, and the **pet Maestro** |
 | Wallpaper | `blender/` renders `wallpaper/frames/` (42 WebP frames + `frames.json`, 15 MB); `wallpaper/src/` shows them | The web layer picks the frame for the sun's phase, multiplies live overlays on top (calendar with Javanese pasaran, clock hands, now-playing sleeve), bakes the WebGL print grade, and runs CSS dust clipped to the sun beam |
-| si Oren | `pet/cat.js`, `pet/poses.js` → `kamar-app/Resources/pet/` | Chibi, one merged silhouette with a single outer ink contour. Each animation is one sheet; `Pet.swift` picks frames with `contentsRect` |
-| Island | `kamar-app/Sources/Island.swift`, `Launcher.swift`, `Projects.swift`, `Alarms.swift`, `FocusGuard.swift` | Folded: time, battery, and the song or timer between them. Click: search. Also rings alarms and shows focus-mode visits |
+| Maestro | `pet/cat.js`, `pet/poses.js` → `guardia-app/Resources/pet/` | Chibi, one merged silhouette with a single outer ink contour. Each animation is one sheet; `Pet.swift` picks frames with `contentsRect` |
+| Island | `guardia-app/Sources/Island.swift`, `Launcher.swift`, `Projects.swift`, `Alarms.swift`, `FocusGuard.swift` | Folded: time, battery, and the song or timer between them. Click: search. Also rings alarms and shows focus-mode visits |
 | JankyBorders | `dotfiles/borders/bordersrc` | Ink outlines |
 | Themes | `dotfiles/vscode` (Kertas / Kertas Malam), `dotfiles/ghostty`, `dotfiles/spicetify`, `dotfiles/chrome` | Chrome needs a manual "Load unpacked" |
 | Stills | `dotfiles/wallpaper/kamar-sore.jpg` (system wallpaper, lock screen), Chrome NTP image | Taken from the graded 16:30 frame |
@@ -129,12 +129,60 @@ The user asked: remove the top bar (clock, weather, battery, and the left items)
 - Permissions the user will see once each: Automation for Ghostty and for Google Chrome (Spotify was already granted).
 - Known trade-off: when a window covers the top centre (a maximised app), the folded island steps behind it, so the time is hidden there; the macOS menu bar (auto-hidden, with its own clock) is still a hover away. Offer "always in front" if the user wants it.
 
+## Revision round 5 (done, 2026-10-26 night)
+
+The user asked:
+1. rename Kamar → Guardia and si Oren → Maestro;
+2. the cat only on normal desktops, not over full-screen apps;
+3. fix the menu toggles (cat, wallpaper);
+4. VS Code works like Claude Code (pick a folder) and covers every folder in `~/Koding`;
+5. Timer and Alarm become separate menus with one consistent input each (Timer → minutes, Alarm → clock time, Mode fokus → minutes), with no "timer atau alarm" row;
+6. the wallpaper and cat were "frozen solid".
+
+- **Rename.**
+  - The app is now `Guardia.app` (bundle id, LaunchAgent and URL scheme `guardia`), and the source folder is `guardia-app/`.
+  - The state folder is `~/.guardia`, the WKWebView scheme `guardia://app/…`, and the JS API `window.guardia` / `window.__guardia`.
+  - The VS Code theme publisher is now `guardia` (`guardia.kertas-theme`), and the borders blacklist is `Guardia`.
+  - `install.sh` migrates an old install:
+    - moves `~/.kamar` → `~/.guardia`;
+    - imports the `id.kamar.app` defaults into `id.guardia.app` (this keeps `previousDesktopPictures` for uninstall, plus alarms and favourites);
+    - takes down the old agent and app, and swaps the VS Code extension.
+  - `uninstall.sh` handles both names.
+  - Deliberately unchanged:
+    - the Blender module `blender/kamar/` ("kamar" = the room) and its node names;
+    - the Chrome image `images/kamar.png`;
+    - the tiny "kamar.js" on the monitor texture (changing it means a full re-render).
+  - DESIGN.md was not touched.
+  - Automation permissions are per bundle id, so macOS asks again for Spotify, Ghostty and Chrome under Guardia.
+- **Frozen cat:**
+  - Cause: `PetController.stop()` invalidated the loop timer but kept `interval`, and `schedule()` skips when the interval is unchanged. After a menu off/on the timer was never recreated.
+  - Fix: `start()`/`stop()` reset properly and are idempotent, plus a 3 s watchdog that restarts the loop if it hasn't ticked for 2 s.
+- **Frozen wallpaper:**
+  - Cause: the page's WebContent process had died (seen: original process gone hours later, probably memory pressure while the desktop was covered), and nothing reloaded it.
+  - Fixes:
+    - a `WKNavigationDelegate` reloads on `webViewWebContentProcessDidTerminate` and on failed loads;
+    - every 60 s and on wake, `verify()` asks `window.__guardia.ready` and reloads a page that doesn't answer;
+    - `stop()` now closes the windows (`isReleasedWhenClosed = false`), and observers are added once;
+    - `NSAppSleepDisabled` is set in Info.plist, so App Nap can't throttle the loops.
+- **Status from a terminal:**
+  - `open -g guardia://status` writes `~/.guardia/status.json` with the pet's state, last tick, x and active-space flag; the wallpaper's running state, window count and last page answer; plus the island, focus, timer and alarms.
+  - `guardia://pet/on|off|come`, `guardia://wallpaper/on|off|check` and `guardia://island/on|off` drive the same paths as the menu. A test that toggles the pet and wallpaper off and on twice came back alive (pet ticking, page `ready`).
+- **Maestro** no longer has `.fullScreenAuxiliary`, so he stays off full-screen spaces. `canReach` requires `panel.isOnActiveSpace`, so a focus-mode visit to full-screen Chrome falls back to the island countdown. The island keeps `.fullScreenAuxiliary`, so that countdown and its "biarin" button still show over full-screen Chrome.
+- **Launcher lists** (`Launcher.List`):
+  - The lists are `root`, `claude`, `code`, `timer`, `alarm` and `focus`. Each has a breadcrumb, placeholder and footer.
+  - The island draws the placeholder itself, because the NSTextField cell kept stale placeholders when the list changed.
+  - Long lists scroll, 7 rows visible, with an n/total count.
+  - Root, empty: live rows (song, running timer), then Claude Code ›, VS Code ›, Putar Spotify, Timer ›, Alarm ›, Mode fokus ›.
+  - Typing at the root still finds projects, Spotify searches, and "timer 10" / "alarm 7.30" / "fokus 50".
+  - `Projects.all()`: every folder in `~/Koding`, recent VS Code ones first, the rest by name.
+  - Letters-in-order fuzzy matching now only checks titles.
+
 ## Tools and gotchas
 
-- **swiftc is broken** by a stale CLT `module.modulemap`. `kamar-app/build.sh` works around it with a VFS overlay. Reinstall the app with: `launchctl bootout gui/$UID/id.kamar.app`, then copy `build/app/Kamar.app` to `~/Applications`, then `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/id.kamar.app.plist`. Copying while the agent runs fails, because launchd relaunches Kamar mid-copy.
+- **swiftc is broken** by a stale CLT `module.modulemap`. `guardia-app/build.sh` works around it with a VFS overlay. Reinstall the app with: `launchctl bootout gui/$UID/id.guardia.app`, then copy `build/app/Guardia.app` to `~/Applications`, then `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/id.guardia.app.plist`. Copying while the agent runs fails, because launchd relaunches Guardia mid-copy.
 - This agent has **no Screen Recording permission**, so it cannot screenshot the live desktop. Verify like this:
   - wallpaper: `node scripts/preview.mjs --times 16:30,21:00` (headless Chrome renders in `build/preview/`);
-  - native surfaces: `Kamar --snapshot <dir>` writes the island states, `pet.png` (one frame from each animation, through the real sprite layer), and the wallpaper as WebKit renders it;
+  - native surfaces: `Guardia --snapshot <dir>` writes the island states, `pet.png` (one frame from each animation, through the real sprite layer), and the wallpaper as WebKit renders it;
   - window placement: CGWindowList, using a small Swift script compiled with the same overlay flags.
 - Homebrew 7 needs `brew trust --formula felixkratz/formulae/borders`.
 - Spicetify: re-run `spicetify backup apply` after Spotify updates. **Don't** run `spicetify config a b` to query values, because it sets them.

@@ -1,4 +1,4 @@
-// si Oren's animations. Cell 200 × 160 (CSS px), facing right, ground at y = 150.
+// Maestro's animations. Cell 200 × 160 (CSS px), facing right, ground at y = 150.
 import { COL } from './cat.js';
 
 const TAU = Math.PI * 2;

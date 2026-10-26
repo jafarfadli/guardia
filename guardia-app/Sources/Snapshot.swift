@@ -1,7 +1,7 @@
 import AppKit
 import WebKit
 
-// `Kamar --snapshot <dir>` renders the island in each state and the hosted wallpaper to PNGs,
+// `Guardia --snapshot <dir>` renders the island in each state and the hosted wallpaper to PNGs,
 // so the native surfaces can be checked without screen-recording rights.
 enum Snapshot {
     static func run(into dir: String, delegate: AppDelegate) {
@@ -43,10 +43,13 @@ enum Snapshot {
         isl.view.toast = nil
         shot("search") { isl.previewSearch("") }
         shot("search-dark") {}
-        shot("search-timer") { isl.previewSearch("timer 10 masak") }
-        shot("search-alarm") { isl.previewSearch("alarm 7.30 bangun") }
-        shot("search-claude") { isl.previewSearch("claude") }
-        shot("search-claude-list") { isl.previewSearch("", list: .claude) }
+        shot("search-code") { isl.previewSearch("", list: .code) }
+        shot("search-claude") { isl.previewSearch("", list: .claude) }
+        shot("search-timer") { isl.previewSearch("", list: .timer) }
+        shot("search-timer-typed") { isl.previewSearch("10 masak", list: .timer) }
+        shot("search-alarm") { isl.previewSearch("7.30 bangun", list: .alarm) }
+        shot("search-focus") { isl.previewSearch("", list: .focus) }
+        shot("search-project") { isl.previewSearch("seoul") }
         shot("search-music") { isl.previewSearch("putar sheila on 7") }
         isl.endPreviewSearch()
         shot("ring") { isl.ring(title: "Alarm 07.30", subtitle: "bangun", action: ("tunda 5 menit", {}), dismiss: {}) }
@@ -54,7 +57,7 @@ enum Snapshot {
         shot("visit") { isl.showGuard(site: "YouTube", seconds: 5, allow: {}) }
         isl.endGuard()
 
-        // si Oren: one frame from each animation on paper, to check how the sheets are sliced
+        // Maestro: one frame from each animation on paper, to check how the sheets are sliced
         let picks = [("idle", 0), ("walk", 0), ("walk", 6), ("tap", 1), ("purr", 3), ("sleep", 0), ("stretch", 5), ("dangle", 2)]
         let cats = picks.compactMap { delegate.pet.snapshot($0.0, frame: $0.1) }
         if let c0 = cats.first, let strip = CGContext(data: nil, width: c0.width * cats.count, height: c0.height, bitsPerComponent: 8, bytesPerRow: 0,
@@ -70,15 +73,15 @@ enum Snapshot {
         // the wallpaper, as WebKit renders it inside the app
         let cfg = WKWebViewConfiguration()
         let handler = ResourceScheme()
-        cfg.setURLSchemeHandler(handler, forURLScheme: "kamar")
+        cfg.setURLSchemeHandler(handler, forURLScheme: "guardia")
         let web = WKWebView(frame: CGRect(x: 0, y: 0, width: 1440, height: 900), configuration: cfg)
         let win = NSWindow(contentRect: web.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         win.contentView = web
         win.setFrameOrigin(NSPoint(x: -3000, y: -3000))
         win.orderFrontRegardless()
-        web.load(URLRequest(url: URL(string: "kamar://app/wallpaper/index.html?still=1&time=16:30")!))
+        web.load(URLRequest(url: URL(string: "guardia://app/wallpaper/index.html?still=1&time=16:30")!))
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
-            web.evaluateJavaScript("JSON.stringify(window.__kamar || null)") { res, err in
+            web.evaluateJavaScript("JSON.stringify(window.__guardia || null)") { res, err in
                 try? "\(res ?? "nil") \(err.map { "\($0)" } ?? "")".write(to: out.appendingPathComponent("wallpaper-state.txt"), atomically: true, encoding: .utf8)
                 web.takeSnapshot(with: nil) { img, _ in
                     if let img, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {

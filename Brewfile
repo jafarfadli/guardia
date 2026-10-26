@@ -1,4 +1,4 @@
-# Everything the Kamar desktop needs (brew bundle --file=Brewfile)
+# Everything the Guardia desktop needs (brew bundle --file=Brewfile)
 tap "felixkratz/formulae"
 brew "felixkratz/formulae/borders"
 brew "spicetify-cli"

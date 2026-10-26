@@ -1,6 +1,6 @@
 import AppKit
 
-// A panel that can take the keyboard without making Kamar the active app (like Spotlight),
+// A panel that can take the keyboard without making Guardia the active app (like Spotlight),
 // but only while the search is open.
 final class IslandPanel: NSPanel {
     var acceptsKeys = false
@@ -9,7 +9,7 @@ final class IslandPanel: NSPanel {
 
 // The "dynamic island" for a notch-less Mac: a paper tab hanging from the top centre, inked
 // by hand. Folded, it shows the time and the battery with whatever is going on between them
-// (a song, a timer, a note). Click it to search; it also rings alarms and shows si Oren's
+// (a song, a timer, a note). Click it to search; it also rings alarms and shows Maestro's
 // focus-mode visits.
 final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     enum Content: Equatable { case status, music, timer, toast, search, ring, visit }
@@ -33,6 +33,8 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private(set) var searching = false
     private(set) var results: [Command] = []
     var selected = 0
+    private(set) var scroll = 0          // first visible row; long lists show seven at a time
+    static let visibleRows = 7
     private(set) var ringing: (title: String, subtitle: String, action: (label: String, run: () -> Void)?, dismiss: () -> Void)?
     private(set) var visit: (site: String, deadline: Date, seconds: Double, allow: () -> Void)?
 
@@ -62,10 +64,18 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         view.addSubview(field)
     }
 
+    private(set) var running = false
+    private var observing = false
+
     func start() {
+        guard !running else { return }
+        running = true
         layout(animated: false)
         panel.orderFrontRegardless()
-        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.layout(animated: false) }
+        if !observing {
+            observing = true
+            NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.layout(animated: false) }
+        }
         tick = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.onTick() }
         tick?.tolerance = 0.03
     }
@@ -92,7 +102,13 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         if panel.level != level { panel.level = level }
     }
 
-    func stop() { panel.orderOut(nil); tick?.invalidate() }
+    func stop() {
+        guard running else { return }
+        running = false
+        if searching { closeSearch() }
+        tick?.invalidate(); tick = nil
+        panel.orderOut(nil)
+    }
 
     private var frameCount = 0
     private var shownMinute = -1
@@ -198,7 +214,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
 
     func windowDidResignKey(_ notification: Notification) { if searching { closeSearch() } }
 
-    /// For `Kamar --snapshot`: the search as it looks with `q` typed, without taking the keyboard.
+    /// For `Guardia --snapshot`: the search as it looks with `q` typed, without taking the keyboard.
     func previewSearch(_ q: String, list: Launcher.List = .root) {
         searching = true
         launcher?.enter(list)
@@ -211,9 +227,15 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     func endPreviewSearch() { searching = false; field.isHidden = true; launcher?.enter(.root) }
 
     func updateResults() {
+        // the field's look is set here, never while drawing; its placeholder is drawn by the
+        // island itself (the cell kept stale placeholders when the list changed)
+        let sc = view.scheme
+        if field.textColor != sc.ink { field.textColor = sc.ink }
+        (field.currentEditor() as? NSTextView)?.insertionPointColor = sc.ink
         results = launcher?.results(field.stringValue) ?? []
         selected = min(selected, max(0, results.count - 1))
         if field.stringValue.isEmpty { selected = 0 }
+        keepSelectionVisible()
         view.needsDisplay = true
         layout(animated: true)
     }
@@ -226,7 +248,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         case #selector(NSResponder.moveDown(_:)), #selector(NSResponder.insertTab(_:)): move(1); return true
         case #selector(NSResponder.insertNewline(_:)): runSelected(alt: false); return true
         case #selector(NSResponder.cancelOperation(_:)):
-            if launcher?.list == .claude { launcher?.enter(.root); field.stringValue = ""; updateResults() } else { closeSearch() }
+            if launcher?.list != .root { launcher?.enter(.root); field.stringValue = ""; selected = 0; updateResults() } else { closeSearch() }
             return true
         default: return false
         }
@@ -235,7 +257,15 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     func move(_ d: Int) {
         guard !results.isEmpty else { return }
         selected = (selected + d + results.count) % results.count
+        keepSelectionVisible()
         view.needsDisplay = true
+    }
+
+    private func keepSelectionVisible() {
+        let n = IslandController.visibleRows
+        if selected < scroll { scroll = selected }
+        if selected >= scroll + n { scroll = selected - n + 1 }
+        scroll = max(0, min(scroll, max(0, results.count - n)))
     }
 
     func runSelected(alt: Bool) {
@@ -247,6 +277,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         }
         if c.keepOpen {
             c.run()
+            field.stringValue = ""
             selected = 0
             updateResults()
             panel.makeFirstResponder(field)
@@ -266,7 +297,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     func targetSize() -> CGSize {
         switch content {
         case .search:
-            let rows = max(1, results.count)
+            let rows = max(1, min(IslandController.visibleRows, results.count))
             return CGSize(width: 560, height: 58 + CGFloat(rows) * 40 + 30)
         case .ring: return CGSize(width: 380, height: 104)
         case .visit: return CGSize(width: 390, height: 96)
@@ -319,7 +350,7 @@ final class IslandView: NSView {
     override func mouseMoved(with event: NSEvent) {
         guard let c = controller, c.searching else { return }
         let p = convert(event.locationInWindow, from: nil)
-        if let i = rows.firstIndex(where: { $0.contains(p) }), i != c.selected { c.selected = i; needsDisplay = true }
+        if let i = rows.firstIndex(where: { $0.contains(p) }), i + c.scroll != c.selected { c.selected = i + c.scroll; needsDisplay = true }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -327,7 +358,7 @@ final class IslandView: NSView {
         let p = convert(event.locationInWindow, from: nil)
         for (r, act) in buttons where r.insetBy(dx: -4, dy: -4).contains(p) { act(); needsDisplay = true; return }
         if c.searching {
-            if let i = rows.firstIndex(where: { $0.contains(p) }) { c.selected = i; c.runSelected(alt: event.modifierFlags.contains(.command)) }
+            if let i = rows.firstIndex(where: { $0.contains(p) }) { c.selected = i + c.scroll; c.runSelected(alt: event.modifierFlags.contains(.command)) }
             return
         }
         if c.ringing != nil || c.visit != nil { return }
@@ -644,31 +675,32 @@ final class IslandView: NSView {
 
     // ------------------------------------------------------------------ search
     private func drawSearch(_ ctx: CGContext, _ r: CGRect, _ sc: Scheme) {
-        guard let c = controller else { return }
-        // the field sits on an inked rule; a breadcrumb inside the Claude list
-        let inClaude = c.launcher?.list == .claude
+        guard let c = controller, let l = c.launcher else { return }
+        // the field sits on an inked rule, after a breadcrumb inside a list
         var fx = r.minX + 26
-        if inClaude {
-            terminalIcon(ctx, CGPoint(x: r.minX + 9, y: 27), sc)
-            let crumb = "Claude Code ›"
-            text(crumb, Ink.font(15, weight: .bold), sc.accent, at: CGPoint(x: fx, y: 16))
-            fx += width(crumb, Ink.font(15, weight: .bold)) + 8
+        if let crumb = l.crumb {
+            icon(ctx, crumb.icon, CGPoint(x: r.minX + 9, y: 27), sc)
+            let t = crumb.title + " ›"
+            text(t, Ink.font(15, weight: .bold), sc.accent, at: CGPoint(x: fx, y: 16))
+            fx += width(t, Ink.font(15, weight: .bold)) + 8
         } else {
             magnifier(ctx, CGPoint(x: r.minX + 9, y: 27), sc)
         }
         let fieldFrame = CGRect(x: fx, y: 14, width: r.maxX - fx, height: 24)
         if c.field.frame != fieldFrame { c.field.frame = fieldFrame }
-        c.field.textColor = sc.ink
-        (c.field.currentEditor() as? NSTextView)?.insertionPointColor = sc.ink
-        let ph = inClaude ? "pilih project…" : "cari: claude, lagu, project, 10m, alarm 7.30, fokus…"
-        c.field.placeholderAttributedString = NSAttributedString(string: ph, attributes: [.font: Ink.font(16, weight: .medium), .foregroundColor: sc.inkSoft.withAlphaComponent(0.8)])
+        if c.field.stringValue.isEmpty {
+            text(l.placeholder, Ink.font(16, weight: .medium), sc.inkSoft.withAlphaComponent(0.8), at: CGPoint(x: fx + 2, y: 14), maxWidth: r.maxX - fx - 4)
+        }
         Ink.stroke([CGPoint(x: r.minX, y: 48), CGPoint(x: r.maxX, y: 48)], width: 1.1, color: sc.inkSoft, seed: 91, taper: 0.2, in: ctx)
 
         if c.results.isEmpty {
-            text("tidak ada yang cocok", Ink.font(13, weight: .medium), sc.inkSoft, at: CGPoint(x: r.minX + 40, y: 64))
+            let empty = l.list == .alarm ? "ketik jamnya, misal 6.30" : l.list == .timer || l.list == .focus ? "ketik jumlah menitnya" : "tidak ada yang cocok"
+            text(empty, Ink.font(13, weight: .medium), sc.inkSoft, at: CGPoint(x: r.minX + 40, y: 64))
         }
-        for (i, cmd) in c.results.enumerated() {
-            let row = CGRect(x: r.minX - 6, y: 56 + CGFloat(i) * 40, width: r.width + 12, height: 38)
+        let shown = c.results.dropFirst(c.scroll).prefix(IslandController.visibleRows)
+        for (k, cmd) in shown.enumerated() {
+            let i = c.scroll + k
+            let row = CGRect(x: r.minX - 6, y: 56 + CGFloat(k) * 40, width: r.width + 12, height: 38)
             rows.append(row)
             if i == c.selected {
                 // a mustard highlighter pass with a little ink tick at the front
@@ -679,15 +711,23 @@ final class IslandView: NSView {
             icon(ctx, cmd.icon, CGPoint(x: row.minX + 22, y: row.midY), sc)
             let tx = row.minX + 42
             let hintW = cmd.hint.isEmpty || i != c.selected ? 0 : width(cmd.hint, Ink.font(11, weight: .semibold)) + 12
+            let arrow = cmd.keepOpen ? 18 : 0
             if cmd.subtitle.isEmpty {
-                text(cmd.title, Ink.font(14, weight: .semibold), sc.ink, at: CGPoint(x: tx, y: row.minY + 9), maxWidth: row.maxX - tx - hintW - 8)
+                text(cmd.title, Ink.font(14, weight: .semibold), sc.ink, at: CGPoint(x: tx, y: row.minY + 9), maxWidth: row.maxX - tx - hintW - 8 - CGFloat(arrow))
             } else {
-                text(cmd.title, Ink.font(14, weight: .semibold), sc.ink, at: CGPoint(x: tx, y: row.minY + 2), maxWidth: row.maxX - tx - hintW - 8)
-                text(cmd.subtitle, Ink.font(11.5, weight: .medium), sc.inkSoft, at: CGPoint(x: tx, y: row.minY + 20), maxWidth: row.maxX - tx - hintW - 8)
+                text(cmd.title, Ink.font(14, weight: .semibold), sc.ink, at: CGPoint(x: tx, y: row.minY + 2), maxWidth: row.maxX - tx - hintW - 8 - CGFloat(arrow))
+                text(cmd.subtitle, Ink.font(11.5, weight: .medium), sc.inkSoft, at: CGPoint(x: tx, y: row.minY + 20), maxWidth: row.maxX - tx - hintW - 8 - CGFloat(arrow))
             }
-            if hintW > 0 { text(cmd.hint, Ink.font(11, weight: .semibold), sc.inkSoft, at: CGPoint(x: row.maxX - hintW, y: row.minY + 11)) }
+            if hintW > 0 { text(cmd.hint, Ink.font(11, weight: .semibold), sc.inkSoft, at: CGPoint(x: row.maxX - hintW - CGFloat(arrow), y: row.minY + 11)) }
+            if cmd.keepOpen {
+                // rows that open a list end in a small inked chevron
+                Ink.stroke([CGPoint(x: row.maxX - 16, y: row.midY - 5), CGPoint(x: row.maxX - 11, y: row.midY), CGPoint(x: row.maxX - 16, y: row.midY + 5)],
+                           width: 1.6, color: sc.inkSoft, seed: 9, taper: 0, in: ctx)
+            }
         }
-        let foot = inClaude ? "↵ buka terminal  ·  esc kembali" : "↵ jalankan  ·  ↑↓ pilih  ·  esc tutup"
+        // more rows than fit: a quiet count where the list continues
+        var foot = l.footer
+        if c.results.count > IslandController.visibleRows { foot += "  ·  \(c.selected + 1)/\(c.results.count)" }
         text(foot, Ink.font(11, weight: .medium), sc.inkSoft, at: CGPoint(x: r.minX, y: bounds.height - pad - 24))
     }
 
@@ -715,7 +755,7 @@ final class IslandView: NSView {
         guard let c = controller, let v = c.visit else { return }
         let left = max(0, v.deadline.timeIntervalSinceNow)
         catDoodle(ctx, center: CGPoint(x: r.minX + 13, y: 30), size: 11, color: sc.ink, asleep: false)
-        text("si Oren mau nutup \(v.site)", Ink.font(16, weight: .bold), sc.ink, at: CGPoint(x: r.minX + 36, y: 13), maxWidth: r.width - 36)
+        text("Maestro mau nutup \(v.site)", Ink.font(16, weight: .bold), sc.ink, at: CGPoint(x: r.minX + 36, y: 13), maxWidth: r.width - 36)
         text("fokus dulu ya · \(Int(left.rounded(.up))) detik lagi", Ink.font(12.5, weight: .medium), sc.inkSoft, at: CGPoint(x: r.minX + 36, y: 36))
         let p = CGFloat(left / max(0.1, v.seconds))
         Ink.stroke([CGPoint(x: r.minX, y: 66), CGPoint(x: r.maxX - 100, y: 66)], width: 1.1, color: sc.inkSoft, seed: 121, taper: 0.2, in: ctx)
@@ -736,6 +776,7 @@ final class IslandView: NSView {
     private func icon(_ ctx: CGContext, _ i: Command.Icon, _ c: CGPoint, _ sc: Scheme) {
         switch i {
         case .terminal: terminalIcon(ctx, c, sc)
+        case .code: codeIcon(ctx, c, sc)
         case .music: note(ctx, c, sc)
         case .next: drawNext(ctx, CGRect(x: c.x - 12, y: c.y - 8, width: 24, height: 16), sc)
         case .prev: drawPrev(ctx, CGRect(x: c.x - 12, y: c.y - 8, width: 24, height: 16), sc)
@@ -766,6 +807,17 @@ final class IslandView: NSView {
         Ink.stroke(pts + [pts[0]], width: 1.2, color: sc.ink, seed: 142, taper: 0, in: ctx)
         Ink.stroke([CGPoint(x: b.minX + 4, y: b.minY + 4.5), CGPoint(x: b.minX + 8, y: b.midY), CGPoint(x: b.minX + 4, y: b.maxY - 4.5)], width: 1.5, color: Theme.cream, seed: 143, taper: 0, in: ctx)
         Ink.stroke([CGPoint(x: b.minX + 10, y: b.maxY - 4), CGPoint(x: b.maxX - 4, y: b.maxY - 4)], width: 1.5, color: Theme.cream, seed: 144, taper: 0, in: ctx)
+    }
+
+    private func codeIcon(_ ctx: CGContext, _ c: CGPoint, _ sc: Scheme) {
+        // a blue page with an inked </> on it
+        let b = CGRect(x: c.x - 10, y: c.y - 8, width: 20, height: 16)
+        let pts = Ink.paperShape(b, radius: 3, seed: 145, jitter: 0.2)
+        Ink.fill(pts, Theme.teal, in: ctx)
+        Ink.stroke(pts + [pts[0]], width: 1.2, color: sc.ink, seed: 146, taper: 0, in: ctx)
+        Ink.stroke([CGPoint(x: c.x - 3.5, y: c.y - 4), CGPoint(x: c.x - 7, y: c.y), CGPoint(x: c.x - 3.5, y: c.y + 4)], width: 1.5, color: Theme.cream, seed: 147, taper: 0, in: ctx)
+        Ink.stroke([CGPoint(x: c.x + 3.5, y: c.y - 4), CGPoint(x: c.x + 7, y: c.y), CGPoint(x: c.x + 3.5, y: c.y + 4)], width: 1.5, color: Theme.cream, seed: 148, taper: 0, in: ctx)
+        Ink.stroke([CGPoint(x: c.x + 1.2, y: c.y - 5), CGPoint(x: c.x - 1.2, y: c.y + 5)], width: 1.3, color: Theme.cream, seed: 149, taper: 0, in: ctx)
     }
 
     private func note(_ ctx: CGContext, _ c: CGPoint, _ sc: Scheme) {
