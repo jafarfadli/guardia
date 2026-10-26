@@ -3,7 +3,8 @@ import AppKit
 // si Oren lives on the floor line (the top of the Dock, or the bottom of the screen when the
 // Dock hides). Sprites come from pet/ (rendered by scripts/render-assets.mjs).
 final class PetController {
-    struct Anim { let frames: [CGImage]; let fps: Double; let loop: Bool }
+    // One sheet per animation; frames are picked with contentsRect so the sheet uploads once.
+    struct Anim { let sheet: CGImage; let count: Int; let fps: Double; let loop: Bool }
     enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch }
 
     private let panel: NSPanel
@@ -56,10 +57,7 @@ final class PetController {
         cellGround = CGFloat(c["groundY"] as? Double ?? 150)
         for (name, a) in list {
             guard let img = NSImage(contentsOf: dir.appendingPathComponent("\(name).png"))?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { continue }
-            let n = a["frames"] as? Int ?? 1
-            let w = img.width / n
-            let frames = (0..<n).compactMap { img.cropping(to: CGRect(x: $0 * w, y: 0, width: w, height: img.height)) }
-            anims[name] = Anim(frames: frames, fps: a["fps"] as? Double ?? 8, loop: a["loop"] as? Bool ?? true)
+            anims[name] = Anim(sheet: img, count: max(1, a["frames"] as? Int ?? 1), fps: a["fps"] as? Double ?? 8, loop: a["loop"] as? Bool ?? true)
         }
     }
 
@@ -126,7 +124,7 @@ final class PetController {
 
     private func step() {
         let now = CACurrentMediaTime()
-        let dt = min(0.1, now - last)
+        let dt = min(0.3, now - last)
         last = now
 
         // input: a keypress resets "seconds since last key down" (no Input Monitoring needed)
@@ -170,12 +168,13 @@ final class PetController {
             let step = 1 / a.fps
             while frameClock >= step {
                 frameClock -= step
-                frame = a.loop ? (frame + 1) % a.frames.count : min(frame + 1, a.frames.count - 1)
+                frame = a.loop ? (frame + 1) % a.count : min(frame + 1, a.count - 1)
             }
         }
         place()
         hitTest()
-        schedule([.walk, .dangle, .fall].contains(state) ? 1.0 / 20 : 1.0 / 10)
+        // asleep, one tick per breathing frame is enough to notice the first key or mouse move
+        schedule([.walk, .dangle, .fall].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
     }
 
     private func onKey() {
@@ -183,7 +182,7 @@ final class PetController {
         case .sleep: set(.stretch, for: 1.1)
         case .idle, .walk, .tap:
             if state != .tap { set(.tap, for: 1.3) } else { until = Date().addingTimeInterval(1.3) }
-            if let a = anims["tap"] { frame = (frame + 1) % a.frames.count }
+            if let a = anims["tap"] { frame = (frame + 1) % a.count }
         default: break
         }
     }
@@ -212,7 +211,11 @@ final class PetController {
         if shown.anim != anim || shown.frame != frame || shown.facing != facing {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            if let a = anims[anim], !a.frames.isEmpty { sprite.contents = a.frames[min(frame, a.frames.count - 1)] }
+            if let a = anims[anim] {
+                if shown.anim != anim { sprite.contents = a.sheet }
+                let w = 1 / CGFloat(a.count)
+                sprite.contentsRect = CGRect(x: CGFloat(min(frame, a.count - 1)) * w, y: 0, width: w, height: 1)
+            }
             sprite.setAffineTransform(CGAffineTransform(scaleX: facing, y: 1))
             CATransaction.commit()
         }
@@ -220,12 +223,30 @@ final class PetController {
         shown = (anim, frame, facing, p)
     }
 
+    // For `Kamar --snapshot`: the sprite layer showing one frame, rendered off screen at 2x.
+    func snapshot(_ name: String, frame i: Int) -> CGImage? {
+        anim = name; frame = i
+        sprite.frame = CGRect(origin: .zero, size: size)
+        place()
+        let k: CGFloat = 2
+        guard let ctx = CGContext(data: nil, width: Int(size.width * k), height: Int(size.height * k), bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        ctx.scaleBy(x: k, y: k)
+        sprite.render(in: ctx)
+        return ctx.makeImage()
+    }
+
     // Clicks only land on the cat itself; everywhere else passes through.
+    private var passThrough = true
     private func hitTest() {
-        if state == .dangle { panel.ignoresMouseEvents = false; return }
-        let f = panel.frame
-        let body = CGRect(x: f.minX + f.width * 0.18, y: f.minY + f.height * 0.06, width: f.width * 0.66, height: f.height * 0.62)
-        panel.ignoresMouseEvents = !body.contains(NSEvent.mouseLocation)
+        var through = false
+        if state != .dangle {
+            let f = panel.frame
+            let body = CGRect(x: f.minX + f.width * 0.18, y: f.minY + f.height * 0.06, width: f.width * 0.66, height: f.height * 0.62)
+            through = !body.contains(NSEvent.mouseLocation)
+        }
+        // each change is a window-server round trip, so only send real changes
+        if through != passThrough { passThrough = through; panel.ignoresMouseEvents = through }
     }
 
     // ------------------------------------------------------------------ mouse (from PetView)

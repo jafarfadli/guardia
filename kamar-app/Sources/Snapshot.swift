@@ -43,6 +43,19 @@ enum Snapshot {
         isl.view.toast = nil
         shot("idle-open", CGSize(width: 330, height: 92)) {}
 
+        // si Oren: one frame from each animation on paper, to check how the sheets are sliced
+        let picks = [("idle", 0), ("walk", 0), ("walk", 6), ("tap", 1), ("purr", 3), ("sleep", 0), ("stretch", 5), ("dangle", 2)]
+        let cats = picks.compactMap { delegate.pet.snapshot($0.0, frame: $0.1) }
+        if let c0 = cats.first, let strip = CGContext(data: nil, width: c0.width * cats.count, height: c0.height, bitsPerComponent: 8, bytesPerRow: 0,
+                                                     space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+            strip.setFillColor(NSColor(srgbRed: 0xE9 / 255, green: 0xDF / 255, blue: 0xC8 / 255, alpha: 1).cgColor)
+            strip.fill(CGRect(x: 0, y: 0, width: strip.width, height: strip.height))
+            for (n, c) in cats.enumerated() { strip.draw(c, in: CGRect(x: n * c0.width, y: 0, width: c0.width, height: c0.height)) }
+            if let img = strip.makeImage() {
+                try? NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])?.write(to: out.appendingPathComponent("pet.png"))
+            }
+        }
+
         // the wallpaper, as WebKit renders it inside the app
         let cfg = WKWebViewConfiguration()
         let handler = ResourceScheme()
