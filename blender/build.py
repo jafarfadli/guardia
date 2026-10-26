@@ -19,7 +19,8 @@ def arg(name, default=None):
     return argv[argv.index('--' + name) + 1] if '--' + name in argv else default
 flag = lambda name: '--' + name in argv
 
-CAL = dict(sun=7.6, fill=3.6, east=3.4, amb=0.21, sky=1.0, lamp=1150.0, halo=10.0)
+CAL = dict(sun=7.6, window=420.0, eastwin=260.0, bounce=10.0, amb=0.21, sky=1.0, lamp=1150.0, spill=15.0,
+           shaft=18.0, lampshaft=4.0, skyhaze=0.08, air=0.045)
 
 
 def reset():
@@ -36,13 +37,27 @@ def render_settings(scale):
     s.render.resolution_y = 1800
     s.render.resolution_percentage = int(scale * 100)
     s.render.film_transparent = False
-    s.eevee.taa_render_samples = 24
+    # enough samples that soft shadows and AO average out before the light is cut into steps;
+    # with fewer, every step edge turns to grain and the ink lines look blurred
+    s.eevee.taa_render_samples = 64
+    s.render.filter_size = 1.0
     s.eevee.use_shadows = True
-    s.eevee.shadow_ray_count = 1
-    s.eevee.shadow_step_count = 6
+    s.eevee.shadow_ray_count = 3
+    s.eevee.shadow_step_count = 12
     s.eevee.use_fast_gi = True
     s.eevee.fast_gi_method = 'AMBIENT_OCCLUSION_ONLY'
     s.eevee.fast_gi_distance = 0.7
+    s.eevee.fast_gi_ray_count = 4
+    s.eevee.fast_gi_step_count = 8
+    # dusty air: the sun and the lamp show as beams
+    s.eevee.use_volumetric_shadows = True
+    s.eevee.volumetric_samples = 128
+    s.eevee.volumetric_tile_size = '4'
+    s.eevee.volumetric_shadow_samples = 32
+    s.eevee.volumetric_sample_distribution = 0.8
+    s.eevee.volumetric_start = 0.1
+    s.eevee.volumetric_end = 12.0
+    s.eevee.volumetric_light_clamp = 0.0
     try:
         s.view_settings.view_transform = 'Standard'
     except TypeError:
@@ -89,8 +104,10 @@ def freestyle(scale):
     ls.select_border = True
     ls.select_crease = True
     ls.select_material_boundary = True
-    ls.select_external_contour = True
-    ls.select_contour = True
+    # contour and external contour retrace the silhouette; two wobbling copies of one edge
+    # read as a blurred line, so they stay off
+    ls.select_external_contour = False
+    ls.select_contour = False
     ls.select_by_collection = True
     ls.collection = core.collection('NoInk')
     ls.collection_negation = 'EXCLUSIVE'
@@ -104,32 +121,31 @@ def freestyle(scale):
     # lines thin out and fade with distance (DESIGN.md: ink lines)
     d = st.thickness_modifiers.new('distance', 'DISTANCE_FROM_CAMERA')
     d.range_min, d.range_max = 1.6, 9.0
-    d.value_min, d.value_max = 1.25, 0.4
+    d.value_min, d.value_max = 1.15, 0.55
     d.mapping = 'LINEAR'
     d.blend = 'MULTIPLY'
-    a = st.alpha_modifiers.new('fade', 'DISTANCE_FROM_CAMERA')
-    a.range_min, a.range_max = 3.0, 14.0
-    a.blend = 'MULTIPLY'
-    a.mapping = 'LINEAR'
-    a.invert = True
-    # a breathing, slightly tapered stroke like a hand-inked line
+    # far lines fade toward a lighter brown but stay opaque: a see-through line smears into the
+    # surface under it and reads as blur
+    c = st.color_modifiers.new('fade', 'DISTANCE_FROM_CAMERA')
+    c.range_min, c.range_max = 3.0, 10.0
+    c.blend = 'MIX'
+    ramp = c.color_ramp.elements
+    ramp[0].color = core.hex_rgba(core.TOKENS['ink']['color'])
+    ramp[1].color = core.hex_rgba('#4A362B')
+    # a slightly tapered stroke like a hand-inked line (no thickness noise: it doubles the width)
     al = st.thickness_modifiers.new('taper', 'ALONG_STROKE')
     al.mapping = 'CURVE'
     al.blend = 'MULTIPLY'
     cm = al.curve
     pts = cm.curves[0].points
-    pts[0].location = (0, 0.55)
-    pts[1].location = (1, 0.55)
+    pts[0].location = (0, 0.7)
+    pts[1].location = (1, 0.7)
     pts.new(0.15, 1.0)
     pts.new(0.85, 1.0)
     cm.update()
-    n = st.thickness_modifiers.new('breathe', 'NOISE')
-    n.amplitude = 0.5 * scale * 2
-    n.period = 60
-    n.blend = 'ADD'
     g = st.geometry_modifiers.new('wobble', 'PERLIN_NOISE_1D')
     g.frequency = 3
-    g.amplitude = 0.35 * scale * 2
+    g.amplitude = 0.15 * scale * 2
     return ls
 
 
@@ -147,6 +163,7 @@ def build(scale):
     except ImportError:
         pass
     lights.world_setup()
+    lights.air_setup()
     freestyle(scale)
 
 

@@ -75,6 +75,16 @@ def look(phase):
     return out
 
 
+def patch_centre(S):
+    """Where the sun through the middle of the window lands on the floor, kept inside the room."""
+    p = Vector((WIN['glass_x'], (WIN['y0'] + WIN['y1']) / 2, (WIN['z0'] + WIN['z1']) / 2))
+    d = -Vector(S)
+    if d.z > -1e-3:
+        return Vector((1.2, p.y, 0))
+    q = p + d * (-p.z / d.z)
+    return Vector((min(max(q.x, 0.6), ROOM_W - 0.6), min(max(q.y, 0.6), ROOM_D - 0.6), 0))
+
+
 # ---------------------------------------------------------------- rig
 def _light(name, kind):
     if name in bpy.data.objects:
@@ -119,6 +129,50 @@ def world_setup():
     return w
 
 
+def air_setup():
+    """The room's air, with a little dust in it, so the sun and the lamp show as beams."""
+    if 'RoomAir' in bpy.data.objects:
+        return bpy.data.objects['RoomAir']
+    m = bpy.data.materials.new('room-air')
+    m.use_nodes = True
+    nt = m.node_tree
+    for n in list(nt.nodes):
+        nt.nodes.remove(n)
+    N, L = nt.nodes, nt.links
+    out = N.new('ShaderNodeOutputMaterial')
+    vol = N.new('ShaderNodeVolumePrincipled')
+    vol.inputs['Color'].default_value = (1.0, 0.97, 0.92, 1)
+    vol.inputs['Anisotropy'].default_value = 0.2
+    # uneven dust: thicker in slow drifts, never empty
+    tc = N.new('ShaderNodeTexCoord')
+    noise = N.new('ShaderNodeTexNoise')
+    noise.inputs['Scale'].default_value = 0.9
+    noise.inputs['Detail'].default_value = 2.0
+    L.new(tc.outputs['Object'], noise.inputs['Vector'])
+    drift = N.new('ShaderNodeMapRange')
+    drift.inputs['From Min'].default_value, drift.inputs['From Max'].default_value = 0.3, 0.7
+    drift.inputs['To Min'].default_value, drift.inputs['To Max'].default_value = 0.55, 1.45
+    L.new(noise.outputs['Fac'], drift.inputs['Value'])
+    dens = N.new('ShaderNodeValue'); dens.name = 'density'; dens.outputs[0].default_value = 0.03
+    mul = N.new('ShaderNodeMath'); mul.operation = 'MULTIPLY'
+    L.new(drift.outputs['Result'], mul.inputs[0]); L.new(dens.outputs[0], mul.inputs[1])
+    L.new(mul.outputs[0], vol.inputs['Density'])
+    L.new(vol.outputs['Volume'], out.inputs['Volume'])
+    me = bpy.data.meshes.new('RoomAir')
+    ob = bpy.data.objects.new('RoomAir', me)
+    import bmesh
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(m)
+    ob.scale = (ROOM_W - 0.04, ROOM_D + 0.55, ROOM_H - 0.04)
+    ob.location = (ROOM_W / 2, (ROOM_D - 0.55) / 2, ROOM_H / 2)
+    ob.visible_shadow = False
+    collection('NoInk').objects.link(ob)  # no ink around the air
+    return ob
+
+
 def apply(phase, cal):
     """Set every light for a phase. `cal` holds the calibration multipliers."""
     lk = look(phase)
@@ -151,49 +205,76 @@ def apply(phase, cal):
     sun.data.angle = math.radians(0.6)
     sun.rotation_mode = 'QUATERNION'
     sun.rotation_quaternion = (-lk['S']).to_track_quat('-Z', 'Y')
+    sun.data.volume_factor = cal['shaft']  # the beam shows in the dusty air
     sun.hide_render = lk['sunI'] <= 0.01
 
-    # sky light: directional from the window side. Only furniture casts its shadows (light
-    # linking), so every plane gets its own clean tone and things sit in soft-edged pools of shade.
-    blockers = collection('Props')
-    fill = _light('WindowFill', 'SUN')
-    fill.data.color = lk['fillCol']
-    fill.data.energy = cal['fill'] * lk['fill']
-    fill.data.angle = math.radians(14)
-    fill.rotation_mode = 'QUATERNION'
-    fill.rotation_quaternion = Vector((0.7, 0.62, -0.42)).normalized().to_track_quat('-Z', 'Y')
-    fill.light_linking.blocker_collection = blockers
-    fill.hide_render = lk['fill'] <= 0.01
+    # sky light: a soft panel just outside each window, tilted down like light from the sky, so
+    # the opening shapes it. Light falls off into the room, everything (frame, curtains, plants,
+    # furniture) casts a soft shadow away from the window, and the ceiling stays unlit.
+    def sky_panel(name, wall_x, outward, y0, y1, z0, z1):
+        tilt = math.radians(30)
+        d = Vector((-outward * math.cos(tilt), 0, -math.sin(tilt)))
+        back = 0.32  # distance outside the wall's outer face
+        ob = _light(name, 'AREA')
+        ob.data.shape = 'RECTANGLE'
+        ob.data.size = (y1 - y0) + 0.15
+        ob.data.size_y = (z1 - z0) + 0.2
+        ob.data.spread = math.radians(110)
+        ob.location = (wall_x + outward * back, (y0 + y1) / 2, (z0 + z1) / 2 + back * math.tan(tilt))
+        ob.rotation_mode = 'QUATERNION'
+        ob.rotation_quaternion = d.to_track_quat('-Z', 'Y')
+        ob.data.volume_factor = cal['skyhaze']
+        return ob
 
-    # the morning's cool light from the east, the same way
-    east = _light('EastFill', 'SUN')
+    win = sky_panel('WindowSky', -WIN['wall_t'], -1, WIN['y0'], WIN['y1'], WIN['z0'], WIN['z1'])
+    win.data.color = lk['fillCol']
+    win.data.energy = cal['window'] * lk['fill']
+    win.hide_render = lk['fill'] <= 0.005
+
+    # the morning's cool light through the east window (out of frame, in the right wall)
+    east = sky_panel('EastSky', ROOM_W + 0.12, 1, 1.7, 3.3, 0.8, 2.3)
     east.data.color = hex_rgba(TOKENS['light']['morning'])[:3]
-    east.data.energy = cal['east'] * lk['cool']
-    east.data.angle = math.radians(14)
-    east.rotation_mode = 'QUATERNION'
-    east.rotation_quaternion = Vector((-0.75, 0.55, -0.38)).normalized().to_track_quat('-Z', 'Y')
-    east.light_linking.blocker_collection = blockers
+    east.data.energy = cal['eastwin'] * lk['cool']
     east.hide_render = lk['cool'] <= 0.02
 
-    # desk lamp: a warm spot onto the papers, a small halo on the wall behind
+    # the sun patch lights the room back up: a warm disc on the floor where the beam lands
+    bounce = _light('SunBounce', 'AREA')
+    bounce.data.shape = 'DISK'
+    bounce.data.size = 2.6
+    bounce.data.use_shadow = False
+    bounce.data.volume_factor = 0.0
+    c = patch_centre(lk['S'])
+    bounce.location = (c.x, c.y, 0.05)
+    bounce.rotation_mode = 'QUATERNION'
+    bounce.rotation_quaternion = Vector((0, 0, 1)).to_track_quat('-Z', 'Y')
+    bounce.data.color = _hexmix('#D89A66', '#FFCC8F', 0.4)
+    bounce.data.energy = cal['bounce'] * lk['sunI']
+    bounce.hide_render = lk['sunI'] <= 0.01
+
+    # desk lamp: a warm cone onto the papers that glows in the air, and its spill on the wall
     lamp = _light('DeskLamp', 'SPOT')
     lamp.data.color = hex_rgba(TOKENS['light']['lamp'])[:3]
     lamp.data.energy = cal['lamp'] * lk['lamp']
-    lamp.data.spot_size = math.radians(118)
-    lamp.data.spot_blend = 0.3
+    lamp.data.spot_size = math.radians(128)
+    lamp.data.spot_blend = 0.75
     lamp.data.shadow_soft_size = 0.02
+    lamp.data.volume_factor = cal['lampshaft']
     lamp.hide_render = lk['lamp'] <= 0.02
     from .props import LAMP_HEAD, LAMP_AXIS
-    lamp.location = Vector(LAMP_HEAD) + Vector(LAMP_AXIS).normalized() * 0.155  # just outside the shade's mouth
+    axis = Vector(LAMP_AXIS).normalized()
+    lamp.location = Vector(LAMP_HEAD) + axis * 0.155  # just outside the shade's mouth
     lamp.rotation_mode = 'QUATERNION'
-    lamp.rotation_quaternion = Vector(LAMP_AXIS).to_track_quat('-Z', 'Y')
-    halo = _light('LampHalo', 'POINT')
-    halo.location = (LAMP_HEAD[0] + 0.04, LAMP_HEAD[1] + 0.14, LAMP_HEAD[2] + 0.02)
-    halo.data.color = hex_rgba(TOKENS['light']['lamp'])[:3]
-    halo.data.energy = 0.0  # a point halo bands into rings; the cone alone reads better
-    halo.data.shadow_soft_size = 0.05
-    halo.hide_render = True
+    lamp.rotation_quaternion = axis.to_track_quat('-Z', 'Y')
+    spill = _light('LampSpill', 'POINT')
+    spill.location = Vector(LAMP_HEAD) + axis * 0.45  # where the lit papers bounce it back
+    spill.data.color = hex_rgba(TOKENS['light']['lamp'])[:3]
+    spill.data.energy = cal['spill'] * lk['lamp']
+    spill.data.shadow_soft_size = 0.3
+    spill.data.use_shadow = False
+    spill.data.volume_factor = 0.0
+    spill.hide_render = lk['lamp'] <= 0.02
     lk['lampOn'] = lk['lamp'] > 0.25
+    bpy.data.materials['room-air'].node_tree.nodes['density'].outputs[0].default_value = cal['air']
     bpy.data.node_groups['KamarToon'].nodes['exposure'].outputs[0].default_value = lk['expo']
     _emission(lk)
     return lk

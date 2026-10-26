@@ -87,6 +87,24 @@ def toon_group():
         e.color = col + (1,)
     L.new(lum.outputs[0], ramp.inputs['Fac'])
 
+    # the same levels without the steps, mixed in so light still falls off across a wall or
+    # floor (window side bright, far corner dim) while the hard steps stay readable
+    soft = N.new('ShaderNodeValToRGB')
+    soft.color_ramp.interpolation = 'LINEAR'
+    se = soft.color_ramp.elements
+    mids = [(0.0, levels[0][1]), (0.035, levels[0][1]), (0.105, levels[1][1]), (0.22, levels[2][1]),
+            (0.625, levels[3][1]), (1.0, levels[4][1])]
+    se[0].position, se[0].color = mids[0][0], mids[0][1] + (1,)
+    se[1].position, se[1].color = mids[-1][0], mids[-1][1] + (1,)
+    for pos, col in mids[1:-1]:
+        se.new(pos).color = col + (1,)
+    L.new(lum.outputs[0], soft.inputs['Fac'])
+    softness = N.new('ShaderNodeValue'); softness.name = 'softness'; softness.outputs[0].default_value = 0.8
+    steps = N.new('ShaderNodeMix'); steps.data_type = 'RGBA'
+    L.new(softness.outputs[0], steps.inputs['Factor'])
+    L.new(ramp.outputs['Color'], steps.inputs['A'])
+    L.new(soft.outputs['Color'], steps.inputs['B'])
+
     # keep the light's hue: chroma = rgb / luminance, eased toward white
     safe = N.new('ShaderNodeMath'); safe.operation = 'MAXIMUM'; safe.inputs[1].default_value = 0.04
     L.new(lum.outputs[0], safe.inputs[0])
@@ -101,7 +119,7 @@ def toon_group():
     chroma.inputs['B'].default_value = (1, 1, 1, 1)
 
     light = N.new('ShaderNodeMix'); light.data_type = 'RGBA'; light.blend_type = 'MULTIPLY'; light.inputs['Factor'].default_value = 1
-    L.new(ramp.outputs['Color'], light.inputs['A'])
+    L.new(steps.outputs['Result'], light.inputs['A'])
     L.new(chroma.outputs['Result'], light.inputs['B'])
 
     # one exposure for the whole room per mood (night is darker); self-lit things skip it
@@ -134,8 +152,16 @@ def toon_group():
     L.new(m1.outputs[0], m2.inputs[0]); L.new(gi.outputs['Hatch'], m2.inputs[1])
     m3 = N.new('ShaderNodeMath'); m3.operation = 'MULTIPLY'; m3.inputs[1].default_value = 0.32
     L.new(m2.outputs[0], m3.inputs[0])
+    # far away the strokes get finer than a pixel and read as grain, so they fade with distance
+    cam = N.new('ShaderNodeCameraData')
+    near = N.new('ShaderNodeMapRange')
+    near.inputs['From Min'].default_value, near.inputs['From Max'].default_value = 3.0, 6.5
+    near.inputs['To Min'].default_value, near.inputs['To Max'].default_value = 1.0, 0.25
+    L.new(cam.outputs['View Distance'], near.inputs['Value'])
+    m4 = N.new('ShaderNodeMath'); m4.operation = 'MULTIPLY'
+    L.new(m3.outputs[0], m4.inputs[0]); L.new(near.outputs['Result'], m4.inputs[1])
     hatch = N.new('ShaderNodeMix'); hatch.data_type = 'RGBA'
-    L.new(m3.outputs[0], hatch.inputs['Factor'])
+    L.new(m4.outputs[0], hatch.inputs['Factor'])
     L.new(lit.outputs['Result'], hatch.inputs['A'])
     hatch.inputs['B'].default_value = hex_rgba(TOKENS['ink']['color'])
 

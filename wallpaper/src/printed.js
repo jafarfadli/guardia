@@ -98,6 +98,14 @@ export function person(seed, kind) {
   };
 }
 
+// Set ctx.font to `font(size)`, shrunk if needed so `text` fits in `maxW`. Returns the size used.
+export function fit(ctx, text, font, size, maxW) {
+  ctx.font = font(size);
+  const w = ctx.measureText(text).width;
+  if (w > maxW) { size *= maxW / w; ctx.font = font(size); }
+  return size;
+}
+
 export function drawPerson(ctx, x, y, px, p, T) {
   for (let row = 0; row < p.tpl.length; row++) {
     const line = p.tpl[row];
@@ -202,41 +210,48 @@ export function poster(ctx, w, h, T) {
   ctx.fillStyle = T('#D9A441');
   ctx.fillRect(0, 0, w, h);
   // a big setting sun behind the singer, in bands (printed in two passes)
+  const sy = h * 0.37, sr = w * 0.3;
   ctx.fillStyle = T('#B04A3A');
-  circle(ctx, w * 0.5, h * 0.46, w * 0.36); ctx.fill();
+  circle(ctx, w * 0.5, sy, sr); ctx.fill();
   ctx.fillStyle = T('#C9663F');
-  ctx.save(); circle(ctx, w * 0.5, h * 0.46, w * 0.36); ctx.clip();
-  for (let i = 0; i < 6; i++) ctx.fillRect(0, h * 0.46 + i * w * 0.07, w, w * 0.035);
+  ctx.save(); circle(ctx, w * 0.5, sy, sr); ctx.clip();
+  for (let i = 0; i < 6; i++) ctx.fillRect(0, sy + i * w * 0.06, w, w * 0.03);
   ctx.restore();
-  // ground strip
+  // ground strip, deep enough for the title block
+  const gy = h * 0.57;
   ctx.fillStyle = T('#34466A');
-  ctx.fillRect(0, h * 0.62, w, h * 0.38);
-  // the singer: pixel art, holding a guitar
-  const px = w / 26;
+  ctx.fillRect(0, gy, w, h - gy);
+  // the singer: pixel art, holding a guitar, standing on the strip
+  const px = w / 30;
   const singer = person(7, 'long');
   singer.col.C = '#3F6874'; singer.col.c = '#2F4E58';
-  drawPerson(ctx, w * 0.5 - 6 * px, h * 0.2, px, singer, T);
+  const top = gy + px * 0.6 - singer.tpl.length * px;
+  drawPerson(ctx, w * 0.5 - 6 * px, top, px, singer, T);
   // guitar in pixels across the body
   const g = ['..wwww......', '.wwwwww.....', '.wwOwwwnnnnn', '.wwwwww.....', '..wwww......'];
   const gc = { w: '#C99A62', O: '#2B1C14', n: '#5E3826' };
   for (let r = 0; r < g.length; r++) for (let c = 0; c < g[r].length; c++) {
     const k = g[r][c]; if (k === '.') continue;
-    ctx.fillStyle = T(gc[k]); ctx.fillRect(w * 0.5 - 7 * px + c * px, h * 0.2 + 11 * px + r * px, px + 0.6, px + 0.6);
+    ctx.fillStyle = T(gc[k]); ctx.fillRect(w * 0.5 - 7 * px + c * px, top + 11 * px + r * px, px + 0.6, px + 0.6);
   }
-  // title and the small print
+  // title in two lines, then the small print; every line keeps a wide margin from the edge
   ctx.textAlign = 'center';
+  const slab = (s) => `${s}px "Alfa Slab One"`;
+  const size = Math.min(fit(ctx, 'LAGU', slab, w * 0.18, w * 0.62), fit(ctx, 'SORE', slab, w * 0.18, w * 0.62));
+  ctx.font = slab(size);
   ctx.fillStyle = T('#EFE5CF');
-  ctx.font = `${w * 0.17}px "Alfa Slab One"`;
-  ctx.fillText('LAGU SORE', w / 2, h * 0.76);
-  ctx.font = `700 ${w * 0.055}px "Shantell Sans"`;
+  const l1 = gy + h * 0.045 + size * 0.72;
+  ctx.fillText('LAGU', w / 2, l1);
+  ctx.fillText('SORE', w / 2, l1 + size * 0.92);
   ctx.fillStyle = T('#E2D1AE');
-  ctx.fillText('akustik di teras belakang', w / 2, h * 0.835);
-  ctx.font = `800 ${w * 0.06}px "Shantell Sans"`;
+  fit(ctx, 'akustik di teras belakang', (s) => `700 ${s}px "Shantell Sans"`, w * 0.045, w * 0.7);
+  ctx.fillText('akustik di teras belakang', w / 2, l1 + size * 0.92 + h * 0.06);
   ctx.fillStyle = T('#D9A441');
-  ctx.fillText('SABTU · 19.00 · GRATIS', w / 2, h * 0.91);
+  fit(ctx, 'SABTU · 19.00 · GRATIS', (s) => `800 ${s}px "Shantell Sans"`, w * 0.05, w * 0.7);
+  ctx.fillText('SABTU · 19.00 · GRATIS', w / 2, l1 + size * 0.92 + h * 0.115);
   // fold creases from being kept in a pocket
   ctx.fillStyle = T('#B88F3A');
-  ctx.fillRect(w * 0.497, 0, w * 0.006, h * 0.62);
+  ctx.fillRect(w * 0.497, 0, w * 0.006, gy);
   ctx.fillRect(0, h * 0.33, w, h * 0.005);
 }
 

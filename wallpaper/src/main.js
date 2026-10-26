@@ -87,7 +87,7 @@ async function render() {
   ctx.globalCompositeOperation = 'source-over';
 
   if (grader && !state.raw) {
-    grader.bake(scene, { warm: light.warm, cool: light.cool * 0.8, glow: 0.6 + light.sunI * 0.6 + light.lamp * 0.5, inkSkip: 0.3 });
+    grader.bake(scene, { warm: light.warm, cool: light.cool * 0.8, glow: 0.6 + light.sunI * 0.6 + light.lamp * 0.5, inkSkip: 0.12 });
     grader.frame(performance.now() / 1000);
     scene.width = 1; scene.height = 1;
   } else {
@@ -113,7 +113,10 @@ window.kamar = {
 let resizeT = 0;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(render, 250); });
 
-document.fonts.ready.then(async () => {
+// Canvas text never asks for a font, so document.fonts.ready alone resolves before the
+// lettering has loaded and the live print falls back to a serif. Load the faces first.
+const faces = ['800 20px "Shantell Sans"', '600 20px "Shantell Sans"', '20px "Alfa Slab One"'];
+Promise.all(faces.map((f) => document.fonts.load(f))).catch(() => {}).then(async () => {
   await render();
   if (!state.still && !q.get('time')) scheduleMinute();
 });

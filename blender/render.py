@@ -75,7 +75,8 @@ def main():
         bpy.context.scene.render.filepath = png
         bpy.ops.render.render(write_still=True)
         webp = os.path.join(OUT, name + '.webp')
-        subprocess.run(['cwebp', '-quiet', '-q', '88', '-m', '6', png, '-o', webp], check=True)
+        # sharp_yuv keeps the ink lines crisp where they cross coloured paint
+        subprocess.run(['cwebp', '-quiet', '-q', '90', '-m', '6', '-sharp_yuv', png, '-o', webp], check=True)
         os.remove(png)
         done[ph] = {'phase': ph, 'file': name + '.webp', 'name': lk['name'], 'sunI': round(lk['sunI'], 3),
                     'lamp': round(lk['lamp'], 3), 'beam': beam_points(lk['S']) if lk['sunI'] > 0.01 else []}
