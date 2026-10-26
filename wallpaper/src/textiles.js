@@ -91,7 +91,7 @@ export function drawCurtains(pt) {
       const strip2 = [[x, yTie, a[1]], [x, yTie, b[1]], [x, yBot, b[2]], [x, yBot, a[2]]];
       for (const strip of [strip1, strip2]) {
         const scr = pt.P(strip);
-        ink.fill(ctx, scr, pt.toneAt('cream', at, N, step));
+        ink.fill(ctx, scr, pt.toneAt('curtain', at, N, step));
         // gingham: mustard bands both ways, darker where they cross
         ctx.save();
         ink.clipTo(ctx, scr);
@@ -145,9 +145,9 @@ export function drawCatBed(pt) {
   // contact shadow: stepped, two rings
   ink.fill(ctx, pt.P(ring(0.002, r * 1.12)), pt.tone('light-wood', [0, 1, 0], 'deep'));
   const sil = hullOf(pt.P(bot).concat(pt.P(top)));
-  ink.fill(ctx, sil, pt.toneAt('teal', at, [0, 0.2, -1]));
+  ink.fill(ctx, sil, pt.toneAt('bedding', at, [0, 0.2, -1]));
   // the far half of the wall is in shade
-  ink.fill(ctx, pt.P(top), pt.toneAt('teal', at, [0, 1, 0]));
+  ink.fill(ctx, pt.P(top), pt.toneAt('bedding', at, [0, 1, 0]));
   ink.fill(ctx, pt.P(inner), pt.toneAt('teal', at, [0, 0, 1], -1));
   ink.fill(ctx, pt.P(cushion), pt.toneAt('cream', at, [0, 1, 0], -1));
   // weave marks on the outside

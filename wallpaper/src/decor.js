@@ -27,7 +27,7 @@ const Q = (u0, v0, u1, v1) => [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
 export function decorAlbedo(pt, T) {
   const { ctx } = pt;
   const B = planes.back;
-  const shadowCol = T(cmix(pt.c('dusty-blue'), pt.c('ink'), 0.42));
+  const shadowCol = T(cmix(pt.c('wall-paint'), pt.c('ink'), 0.42));
   const drop = (uvs, du = 0.016, dv = -0.02) => fillUV(pt, B, uvs.map(([u, v]) => [u + du, v + dv]), shadowCol);
 
   // cork board: stepped drop shadow, wooden frame, cork and everything pinned to it

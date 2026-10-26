@@ -82,7 +82,7 @@ export function plantOccluders() {
   ];
 }
 
-function drawLeaf(pt, lf, base = 'plant-green', o = {}) {
+function drawLeaf(pt, lf, base = 'leaf', o = {}) {
   const ctx = pt.ctx;
   const c = add(lf.base, mul(lf.dir, lf.len * 0.5));
   const N = dot(lf.n, sub(pt.cam.pos, c)) > 0 ? lf.n : mul(lf.n, -1);
@@ -111,12 +111,12 @@ export function drawMonstera(pt) {
   const g = plantGeometry();
   // pot with a saucer
   pt.cyl(0.4, 4.74, 0.21, 0, 0.03, { mat: 'terracotta', inkBase: 1.2 });
-  pt.cyl(0.4, 4.74, 0.19, 0.03, 0.38, { mat: 'terracotta', rBottom: 0.16, inner: { k: 0.9, mat: '#3A2418' }, inkBase: 1.6 });
+  pt.cyl(0.4, 4.74, 0.19, 0.03, 0.38, { mat: 'pot', rBottom: 0.16, inner: { k: 0.9, mat: '#3A2418' }, inkBase: 1.6 });
   pt.cyl(0.4, 4.74, 0.2, 0.31, 0.38, { mat: 'terracotta', cap: false, inkBase: 1.0 });
   const sorted = [...g.monstera].sort((a, b) => pt.cam.depth(b.base) - pt.cam.depth(a.base));
   for (const lf of sorted) {
     pt.inkCurve3(lf.stem, { base: 1.3, taper: 0.5 });
-    drawLeaf(pt, lf, 'plant-green', { inkBase: 1.3 });
+    drawLeaf(pt, lf, 'leaf', { inkBase: 1.3 });
   }
 }
 

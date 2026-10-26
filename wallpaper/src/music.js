@@ -28,7 +28,7 @@ export function drawGuitar(pt) {
   // stepped shadow on the wall behind
   const wallZ = ROOM.d - 0.005;
   const shadow = body.map((p) => [p[0] + 0.035, p[1] - 0.012, wallZ]);
-  ink.fill(ctx, pt.P(shadow), pt.tone('dusty-blue', [0, 0, -1], 'deep'));
+  ink.fill(ctx, pt.P(shadow), pt.tone('wall-paint', [0, 0, -1], 'deep'));
   const neck = [at(-0.024, 0.55), at(0.024, 0.55), at(0.02, 0.9), at(-0.02, 0.9)];
   const head = [at(-0.032, 0.9), at(0.032, 0.9), at(0.04, len), at(-0.036, len)];
   const P0 = at(0, 0.3);

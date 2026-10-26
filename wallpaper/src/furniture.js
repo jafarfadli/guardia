@@ -33,7 +33,7 @@ export function furnitureOccluders() {
 // ------------------------------------------------------------------ desk
 export function drawDesk(pt) {
   const { x0, x1, z0, z1, top, t } = DESK;
-  const wood = 'pine';
+  const wood = 'desk-wood';
   // drawer pedestal on the right, open space with a bin on the left
   const px0 = x1 - 0.5, px1 = x1 - 0.03;
   pt.box([x0 + 0.02, x0 + 0.065, 0, top - t, z1 - 0.06, z1 - 0.015], { mat: wood, inkBase: 1.3 });
@@ -152,7 +152,7 @@ function drawShade(pt, apex, axis, r, len) {
   const top = [];
   for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; top.push(add(apex, add(mul(u, Math.cos(a) * r * 0.32), mul(v, Math.sin(a) * r * 0.32)))); }
   const sil = hullPts(pt.P(ring).concat(pt.P(top)));
-  ink.fill(ctx, sil, pt.toneAt('mustard', base, norm([-0.5, 0.5, -0.7])));
+  ink.fill(ctx, sil, pt.toneAt('lamp-shade', base, norm([-0.5, 0.5, -0.7])));
   // the inside of the shade: a glowing bulb when the lamp is on
   const on = pt.L.lamp > 0.3;
   ink.fill(ctx, pt.P(ring), on ? '#FFE7B0' : pt.tone('#6B4A2A', [0, -1, 0], 'shade'));
@@ -231,7 +231,7 @@ const BOOK_COLS = ['navy', 'mustard', 'terracotta', 'teal', 'olive', 'muted-red'
 
 export function drawShelf(pt) {
   const s = SHELF;
-  const wood = 'cherry';
+  const wood = 'shelf-wood';
   // open back: the wall shows between the books; the far side panel goes first
   pt.box([s.x1 - 0.03, s.x1, 0, s.h, s.z0, s.z1], { mat: wood, inkBase: 1.8, seed: 32 });
   const r = rng(314);

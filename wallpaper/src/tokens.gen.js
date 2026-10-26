@@ -71,12 +71,12 @@ export const TOKENS = {
     "ceiling": {
       "color": "ceiling-white",
       "mark": "plaster-flecks",
-      "hatch": 0.4
+      "hatch": 0.3
     },
     "floor-vinyl": {
       "color": "light-wood",
       "mark": "wood-grain",
-      "hatch": 0.2
+      "hatch": 0.22
     },
     "trim": {
       "color": "cherry",
@@ -89,7 +89,7 @@ export const TOKENS = {
       "hatch": 0
     },
     "shelf-wood": {
-      "color": "dark-wood",
+      "color": "cherry",
       "mark": "wood-grain",
       "hatch": 0
     },

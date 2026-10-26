@@ -83,9 +83,9 @@ function drawShell(pt) {
   pt.surface({
     outline: [[0, h, near], [w, h, near], [w, h, d], [0, h, d]],
     plane: planes.ceiling,
-    albedo: (T) => wallAlbedo(pt, planes.ceiling, T, { box: [0, near, w, d], paint: 'ceiling-white', seed: 5, flecks: 200,
+    albedo: (T) => wallAlbedo(pt, planes.ceiling, T, { box: [0, near, w, d], paint: 'ceiling', seed: 5, flecks: 200,
       stains: [{ u: 0.9, v: 4.4, r: 0.34, seed: 3, k: 0.14, drip: 0, sx: 1.5 }] }),
-    hatch: { amount: 0.3, angle: 1.25, spacing: 0.045, alpha: 0.24, seed: 2, box: [0, near, w, d] },
+    hatch: { amount: pt.hatchOf('ceiling', 0.3), angle: 1.25, spacing: 0.045, alpha: 0.24, seed: 2, box: [0, near, w, d] },
   });
 
   // back wall
@@ -93,7 +93,7 @@ function drawShell(pt) {
     outline: [[0, 0, d], [w, 0, d], [w, h, d], [0, h, d]],
     plane: planes.back,
     albedo: (T) => wallAlbedo(pt, planes.back, T, {
-      box: [0, 0, w, h], paint: 'dusty-blue', seed: 17, flecks: 650, yellowTop: 2.38,
+      box: [0, 0, w, h], paint: 'wall-paint', seed: 17, flecks: 650, yellowTop: 2.38,
       stains: [
         { u: 0.45, v: 2.5, r: 0.32, seed: 7, k: 0.22, drip: 1.4, sx: 1.3 },
         { u: 4.65, v: 2.62, r: 0.22, seed: 12, k: 0.16, drip: 1.0 },
@@ -101,7 +101,7 @@ function drawShell(pt) {
       ghosts: [{ u0: 0.32, v0: 1.32, u1: 0.84, v1: 2.02, scrap: true }],
       extra: (T) => decorAlbedo(pt, T),
     }),
-    hatch: { amount: 1.0, angle: 1.05, spacing: 0.036, alpha: 0.36, seed: 9, box: [0, 0, w, h], exclude: decorExclude() },
+    hatch: { amount: pt.hatchOf('wall-paint', 1), angle: 1.05, spacing: 0.036, alpha: 0.36, seed: 9, box: [0, 0, w, h], exclude: decorExclude() },
   });
   decorInk(pt);
   drawStringLights(pt);
@@ -110,7 +110,7 @@ function drawShell(pt) {
   pt.surface({
     outline: [[w, 0, d], [w, 0, near], [w, h, near], [w, h, d]],
     plane: planes.right,
-    albedo: (T) => wallAlbedo(pt, planes.right, T, { box: [0, -d, h, -near], paint: 'dusty-blue', seed: 23, flecks: 240 }),
+    albedo: (T) => wallAlbedo(pt, planes.right, T, { box: [0, -d, h, -near], paint: 'wall-paint', seed: 23, flecks: 240 }),
     hatch: { amount: 0.8, angle: -1.0, seed: 4, box: [0, -d, h, 3] },
   });
 
@@ -124,7 +124,7 @@ function drawShell(pt) {
   for (const outline of leftParts) {
     pt.surface({
       outline, plane: planes.left,
-      albedo: (T) => wallAlbedo(pt, planes.left, T, { box: [0, near, h, d], paint: 'dusty-blue', seed: 31, flecks: 360, yellowTop: 2.38,
+      albedo: (T) => wallAlbedo(pt, planes.left, T, { box: [0, near, h, d], paint: 'wall-paint', seed: 31, flecks: 360, yellowTop: 2.38,
         stains: [{ u: 0.55, v: 3.6, r: 0.18, seed: 21, k: 0.2, drip: 0.6 }] }),
       hatch: { amount: 1.0, angle: 0.75, spacing: 0.036, alpha: 0.36, seed: 13, box: [0, near, h, d] },
     });
@@ -138,18 +138,18 @@ function drawShell(pt) {
     outline: [[0, 0, near], [w, 0, near], [w, 0, d], [0, 0, d]],
     plane: planes.floor,
     albedo: (T) => { floorAlbedo(pt, T); rugAlbedo(pt, T); },
-    hatch: { amount: 0.22, angle: 0.0, spacing: 0.05, alpha: 0.22, dash: 0.25, gap: 0.3, seed: 3, box: [near, 0, d, w] },
+    hatch: { amount: pt.hatchOf('floor-vinyl', 0.22), angle: 0.0, spacing: 0.05, alpha: 0.22, dash: 0.25, gap: 0.3, seed: 3, box: [near, 0, d, w] },
   });
   floorInk(pt);
   rugInk(pt);
 
   // skirting boards along the back and left walls
-  pt.box([0.0, w, 0, 0.1, d - 0.018, d], { mat: 'cherry', inkBase: 1.4, seed: 4 });
-  pt.box([0, 0.018, 0, 0.1, near, d - 0.018], { mat: 'cherry', inkBase: 1.4, seed: 6 });
+  pt.box([0.0, w, 0, 0.1, d - 0.018, d], { mat: 'trim', inkBase: 1.4, seed: 4 });
+  pt.box([0, 0.018, 0, 0.1, near, d - 0.018], { mat: 'trim', inkBase: 1.4, seed: 6 });
 
   // picture rail / cornice in cherry where the walls meet the ceiling
-  pt.box([0.0, w, h - 0.07, h, d - 0.03, d], { mat: 'cherry', inkBase: 1.3, seed: 41 });
-  pt.box([0, 0.03, h - 0.07, h, near, d - 0.03], { mat: 'cherry', inkBase: 1.3, seed: 42 });
+  pt.box([0.0, w, h - 0.07, h, d - 0.03, d], { mat: 'trim', inkBase: 1.3, seed: 41 });
+  pt.box([0, 0.03, h - 0.07, h, near, d - 0.03], { mat: 'trim', inkBase: 1.3, seed: 42 });
 
   // room edges inked
   pt.inkLine3([[0, 0, d], [0, h, d]], { base: 2.2, seed: 2 });
@@ -164,18 +164,18 @@ function drawWindowReveal(pt) {
   // soffit (top of the opening), far jamb, sill
   pt.surface({
     outline: [[-T, y1, z0], [0, y1, z0], [0, y1, z1], [-T, y1, z1]], plane: new Plane([0, y1, 0], [1, 0, 0], [0, 0, 1]), N: [0, -1, 0],
-    albedo: (Tn) => ink.fill(pt.ctx, pt.P([[-T, y1, z0], [0, y1, z0], [0, y1, z1], [-T, y1, z1]]), Tn('dusty-blue')),
+    albedo: (Tn) => ink.fill(pt.ctx, pt.P([[-T, y1, z0], [0, y1, z0], [0, y1, z1], [-T, y1, z1]]), Tn('wall-paint')),
     hatch: { amount: 0.7, angle: 0.4, seed: 8 },
   });
   const jamb = new Plane([0, 0, z1], [1, 0, 0], [0, 1, 0]); jamb.n = [0, 0, -1];
   pt.surface({
     outline: [[-T, y0, z1], [0, y0, z1], [0, y1, z1], [-T, y1, z1]], plane: jamb, N: [0, 0, -1],
-    albedo: (Tn) => ink.fill(pt.ctx, pt.P([[-T, y0, z1], [0, y0, z1], [0, y1, z1], [-T, y1, z1]]), Tn('dusty-blue')),
+    albedo: (Tn) => ink.fill(pt.ctx, pt.P([[-T, y0, z1], [0, y0, z1], [0, y1, z1], [-T, y1, z1]]), Tn('wall-paint')),
   });
   // window frame (painted wood) and glazing bars
   const zm = (z0 + z1) / 2;
   const fx0 = glassX - 0.03, fx1 = glassX + 0.03;
-  const mat = 'ivory';
+  const mat = 'window-frame';
   pt.box([fx0, fx1, y0, y1, z0, z0 + f], { mat, inkBase: 1.3, seed: 11 });
   pt.box([fx0, fx1, y0, y1, z1 - f, z1], { mat, inkBase: 1.3, seed: 12 });
   pt.box([fx0, fx1, y1 - f, y1, z0, z1], { mat, inkBase: 1.3, seed: 13 });

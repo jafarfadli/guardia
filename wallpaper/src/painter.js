@@ -32,6 +32,9 @@ export class Painter {
   c(name) {
     if (Array.isArray(name)) return name;
     if (name.startsWith('#')) return hex(name);
+    // material names from the shared list resolve to their colour
+    const m = this.T.materials?.[name];
+    if (m && m.color && m.color !== name) return this.c(m.color === 'ink' ? this.T.ink.color : m.color);
     const v = this.palette[name];
     if (!v) throw new Error('unknown colour ' + name);
     return v;
@@ -66,6 +69,9 @@ export class Painter {
     const e = this.irradiance(N, level, band);
     return (base, a = 1) => css(shoulder(cmul(this.c(base), e)), a);
   }
+
+  // Hatching amount for a material, from the shared list.
+  hatchOf(name, fallback = 0) { return this.T.materials?.[name]?.hatch ?? fallback; }
 
   // ---------- projection helpers ----------
   P(pts3) { return this.cam.poly(pts3); }
