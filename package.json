@@ -1,0 +1,12 @@
+{
+  "name": "kamar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "themes": "node scripts/build-themes.mjs",
+    "preview": "node scripts/preview.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}
