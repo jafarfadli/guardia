@@ -1,6 +1,5 @@
 # Everything the Kamar desktop needs (brew bundle --file=Brewfile)
 tap "felixkratz/formulae"
-brew "felixkratz/formulae/sketchybar"
 brew "felixkratz/formulae/borders"
 brew "spicetify-cli"
 cask "ghostty"

@@ -43,19 +43,6 @@ try {
   for (const [name, png] of Object.entries(tex)) await writeFile(join(texDir, `${name}.png`), Buffer.from(png.split(',')[1], 'base64'));
   console.log('textures', Object.keys(tex).join(' '));
 
-  // menu bar icons
-  await tab.goto(`http://127.0.0.1:${port}/bar/index.html`, { waitUntil: 'load' });
-  await tab.waitForFunction('window.__icons', { timeout: 60000 });
-  const icons = await tab.evaluate(() => window.__icons);
-  const iconDir = join(root, 'dotfiles/sketchybar/icons');
-  await mkdir(iconDir, { recursive: true });
-  for (const [name, png] of Object.entries(icons)) await writeFile(join(iconDir, `${name}.png`), Buffer.from(png.split(',')[1], 'base64'));
-  console.log('icons', Object.keys(icons).length);
-  await tab.goto(`http://127.0.0.1:${port}/bar/index.html?ink=night`, { waitUntil: 'load' });
-  await tab.waitForFunction('window.__icons', { timeout: 60000 });
-  const nightIcons = await tab.evaluate(() => window.__icons);
-  await mkdir(join(iconDir, 'night'), { recursive: true });
-  for (const [name, png] of Object.entries(nightIcons)) await writeFile(join(iconDir, 'night', `${name}.png`), Buffer.from(png.split(',')[1], 'base64'));
 } finally {
   await browser.close();
   server.close();

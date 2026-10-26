@@ -11,7 +11,7 @@ web
 Confirmed in the brainstorming round (2026-10-26):
 - Wallpaper: live HTML (canvas 2D scene + WebGL grade), hosted full-screen behind the desktop.
 - Island and pet: one native Swift menu-bar app ("Kamar"), sprites pre-rendered from the same art pipeline so runtime stays light (the Mac has 8 GB RAM).
-- Menu bar: SketchyBar replaces the visible macOS menu bar (macOS menu bar set to auto-hide).
+- Menu bar: the macOS menu bar auto-hides; the island carries the time and battery (SketchyBar was retired in revision round 3).
 - Windows: floating, outlined by JankyBorders; macOS 26 native tiling instead of a tiling manager.
 - App themes: VS Code + Ghostty terminal, Chrome, Spotify (Spicetify). Discord excluded (client mods break its ToS).
 - One token file (`design/tokens.json`) is the material list; scripts generate every tool's config from it.
@@ -32,7 +32,7 @@ The desktop is the room, not a theme on top of macOS: widgets are objects in the
 
 - The wallpaper is mostly covered by app windows; the edges (window wall on the left, floor along the bottom, shelves on the right) carry the most visible art.
 - The Dock stays at the bottom (53 px tiles); the pet walks along its top edge, which reads as the room's floor.
-- No notch: the "dynamic island" is a paper tab at the top centre of SketchyBar.
+- No notch: the "dynamic island" is a paper tab at the top centre of the screen. Clicking it opens a search (Claude Code, Spotify, VS Code projects, timers and alarms, focus mode).
 - macOS appearance is currently Dark; generated themes ship a light (day) and dark (night) variant.
 
 ## Capabilities and Constraints

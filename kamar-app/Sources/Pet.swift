@@ -5,7 +5,7 @@ import AppKit
 final class PetController {
     // One sheet per animation; frames are picked with contentsRect so the sheet uploads once.
     struct Anim { let sheet: CGImage; let count: Int; let fps: Double; let loop: Bool }
-    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch }
+    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch, dash, leap, perch, swipe }
 
     private let panel: NSPanel
     private let view: PetView
@@ -26,6 +26,12 @@ final class PetController {
     private var vy: CGFloat = 0
     private var loop: Timer?
     private var last = CACurrentMediaTime()
+    // a focus-mode visit to a Chrome tab: run under it, leap up, perch, maybe swipe
+    private var visitTo: CGPoint?
+    private var onPerched: (() -> Void)?
+    private var onPulledAway: (() -> Void)?
+    private var afterSwipe: (() -> Void)?
+    private var leap: (from: CGPoint, t0: Double, dur: Double) = (.zero, 0, 0.6)
     var size: CGSize { CGSize(width: cell.width * scale, height: cell.height * scale) }
 
     init() {
@@ -34,7 +40,7 @@ final class PetController {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
         view = PetView(frame: panel.contentRect(forFrameRect: panel.frame))
@@ -105,6 +111,47 @@ final class PetController {
         set(.walk, for: 30)
     }
 
+    // ------------------------------------------------------------------ focus-mode visits
+    var isPerched: Bool { state == .perch }
+
+    func canReach(_ feet: CGPoint) -> Bool { screen.frame.insetBy(dx: 4, dy: 4).contains(feet) && panel.isVisible }
+
+    /// Run along the floor until under `feet`, leap up and perch there (feet in screen coordinates).
+    func investigate(_ feet: CGPoint, perched: @escaping () -> Void, pulledAway: @escaping () -> Void) {
+        let origin = CGPoint(x: feet.x - size.width / 2, y: feet.y - (cell.height - cellGround) * scale)
+        visitTo = origin
+        onPerched = perched
+        onPulledAway = pulledAway
+        targetX = min(max(origin.x, bounds.lowerBound), bounds.upperBound)
+        if [.dangle, .fall].contains(state) { pos.y = groundOrigin() }
+        if abs(targetX - pos.x) > 30 { set(.dash, for: 8) } else { beginLeap() }
+    }
+
+    private func beginLeap() {
+        guard let to = visitTo else { set(.idle, for: 3); return }
+        facing = to.x >= pos.x ? 1 : -1
+        let dist = hypot(to.x - pos.x, to.y - pos.y)
+        leap = (pos, CACurrentMediaTime(), 0.45 + Double(dist) / 2600)
+        set(.leap, for: leap.dur + 2)
+    }
+
+    /// The paw swipe, then `then` (closing the tab), then the drop back to the floor.
+    func swipe(then: @escaping () -> Void) {
+        guard state == .perch else { then(); return }
+        afterSwipe = then
+        set(.swipe, for: anims["swipe"].map { Double($0.count) / $0.fps } ?? 0.5)
+    }
+
+    /// End a visit: from up on the tab he simply lets go and falls to the floor.
+    func drop() {
+        visitTo = nil; onPerched = nil; onPulledAway = nil; afterSwipe = nil
+        switch state {
+        case .perch, .leap, .swipe: vy = 60; set(.fall, for: 5)
+        case .dash: set(.idle, for: 3)
+        default: break
+        }
+    }
+
     // ------------------------------------------------------------------ state machine
     private func set(_ s: State, for seconds: Double) {
         state = s
@@ -118,6 +165,10 @@ final class PetController {
         case .purr: name = "purr"
         case .dangle, .fall: name = "dangle"
         case .stretch: name = "stretch"
+        case .dash: name = "walk"
+        case .leap: name = "leap"
+        case .perch: name = "perch"
+        case .swipe: name = "swipe"
         }
         if name != anim { anim = name; frame = 0; frameClock = 0 }
     }
@@ -158,13 +209,35 @@ final class PetController {
             pos.y += vy * CGFloat(dt)
             let g = groundOrigin()
             if pos.y <= g { pos.y = g; vy = 0; set(.idle, for: 3) }
+        case .dash:
+            // zoomies: the walk cycle played fast
+            let dir: CGFloat = targetX > pos.x ? 1 : -1
+            facing = dir
+            pos.x += dir * 340 * CGFloat(dt)
+            if (targetX - pos.x) * dir <= 2 || Date() > until { pos.x = targetX; beginLeap() }
+        case .leap:
+            guard let to = visitTo else { vy = 0; set(.fall, for: 5); break }
+            let t = min(1, (now - leap.t0) / leap.dur)
+            let e = CGFloat(t * t * (3 - 2 * t))
+            pos.x = leap.from.x + (to.x - leap.from.x) * e
+            pos.y = leap.from.y + (to.y - leap.from.y) * e + CGFloat(sin(t * .pi)) * 70
+            if t >= 1 {
+                pos = to
+                set(.perch, for: .infinity)
+                let cb = onPerched; onPerched = nil; cb?()
+            }
+        case .perch:
+            if let to = visitTo { pos = to }
+        case .swipe:
+            if let to = visitTo { pos = to }
+            if Date() > until { let cb = afterSwipe; afterSwipe = nil; cb?() }
         }
-        if state != .dangle && state != .fall { pos.y = groundOrigin() }
-        pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound)
+        if ![.dangle, .fall, .leap, .perch, .swipe].contains(state) { pos.y = groundOrigin() }
+        if ![.leap, .perch, .swipe].contains(state) { pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound) }
 
         // animate (taps advance per key instead of by time)
         if let a = anims[anim], state != .tap {
-            frameClock += dt
+            frameClock += state == .dash ? dt * 2.4 : dt
             let step = 1 / a.fps
             while frameClock >= step {
                 frameClock -= step
@@ -174,7 +247,7 @@ final class PetController {
         place()
         hitTest()
         // asleep, one tick per breathing frame is enough to notice the first key or mouse move
-        schedule([.walk, .dangle, .fall].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
+        schedule(state == .leap ? 1.0 / 40 : [.walk, .dash, .dangle, .fall, .swipe].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
     }
 
     private func onKey() {
@@ -255,14 +328,19 @@ final class PetController {
     func mouseDown(at p: CGPoint) { grab = p; dragged = false }
     func mouseDragged() {
         guard grab != nil else { return }
-        if !dragged { dragged = true; set(.dangle, for: .infinity) }
+        if !dragged {
+            dragged = true
+            // pulled off a tab: the visit is over and the site is let be
+            if visitTo != nil { let cb = onPulledAway; visitTo = nil; onPerched = nil; onPulledAway = nil; afterSwipe = nil; cb?() }
+            set(.dangle, for: .infinity)
+        }
         let m = NSEvent.mouseLocation
         // held by the scruff: the top of the head stays under the cursor
         pos = CGPoint(x: m.x - size.width / 2, y: m.y - size.height * 0.9)
         place()
     }
     func mouseUp() {
-        if dragged { vy = 0; set(.fall, for: 5) } else { set(.purr, for: 3.5) }
+        if dragged { vy = 0; set(.fall, for: 5) } else if visitTo == nil { set(.purr, for: 3.5) }
         grab = nil; dragged = false
     }
 }

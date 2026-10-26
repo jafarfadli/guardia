@@ -62,8 +62,21 @@ final class NowPlaying {
 
     // ------------------------------------------------------------------ controls
     func playPause() { send("playpause") }
+    func play() { send("play") }
     func next() { send("next track") }
     func previous() { send(track?.source == "Music" ? "back track" : "previous track") }
+
+    /// A playlist, album, artist or track URI (from the favourites in the island's search).
+    func play(uri: String) {
+        let safe = uri.filter { $0.isLetter || $0.isNumber || $0 == ":" }
+        AppleScript.run("tell application \"Spotify\" to play track \"\(safe)\"")
+    }
+
+    /// Opens Spotify's own search on the query; picking a result stays in Spotify.
+    func search(_ q: String) {
+        let enc = q.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? q
+        if let url = URL(string: "spotify:search:\(enc)") { NSWorkspace.shared.open(url) }
+    }
 
     private func send(_ cmd: String) {
         let app = track?.source ?? "Spotify"

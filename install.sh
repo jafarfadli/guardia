@@ -13,7 +13,6 @@ command -v brew >/dev/null || { echo "Homebrew dibutuhkan: https://brew.sh"; exi
 
 # ------------------------------------------------------------------ 1. packages
 say "Memasang paket lewat Homebrew"
-brew trust --formula felixkratz/formulae/sketchybar >/dev/null 2>&1 || true
 brew trust --formula felixkratz/formulae/borders >/dev/null 2>&1 || true
 brew bundle --file="$ROOT/Brewfile" --no-upgrade
 
@@ -42,8 +41,17 @@ link() {
   ln -s $src $dst
   print -r -- "$dst" >> $BACKUP/links.txt
 }
-say "Menautkan config (SketchyBar, borders, Ghostty)"
-link $ROOT/dotfiles/sketchybar $HOME/.config/sketchybar
+# SketchyBar was retired (the island shows the time and battery now): undo its link and service
+if [[ -L $HOME/.config/sketchybar && $(readlink $HOME/.config/sketchybar) == $ROOT/dotfiles/sketchybar ]]; then
+  brew services stop felixkratz/formulae/sketchybar >/dev/null 2>&1 || true
+  rm $HOME/.config/sketchybar
+  if [[ -f $BACKUP/moved.tsv ]]; then
+    while IFS=$'\t' read -r dst saved; do
+      [[ $dst == $HOME/.config/sketchybar && -e $saved && ! -e $dst ]] && mv $saved $dst
+    done < $BACKUP/moved.tsv
+  fi
+fi
+say "Menautkan config (borders, Ghostty)"
 link $ROOT/dotfiles/borders $HOME/.config/borders
 link $ROOT/dotfiles/ghostty $HOME/.config/ghostty
 
@@ -67,9 +75,8 @@ osascript -e 'tell application "System Events" to tell dock preferences to set a
 osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to true' >/dev/null 2>&1 || true
 killall SystemUIServer 2>/dev/null || true
 
-# ------------------------------------------------------------------ 5. bar and window borders
-say "Menyalakan SketchyBar dan JankyBorders"
-brew services restart felixkratz/formulae/sketchybar >/dev/null
+# ------------------------------------------------------------------ 5. window borders
+say "Menyalakan JankyBorders"
 brew services restart felixkratz/formulae/borders >/dev/null
 
 # ------------------------------------------------------------------ 6. Kamar at login

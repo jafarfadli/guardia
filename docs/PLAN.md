@@ -21,7 +21,7 @@ Decisions are recorded in PRODUCT.md. Each stage ended with a look at the real r
 - [x] Build with the CLT module-map workaround; LaunchAgent; `--snapshot` for checking surfaces offscreen
 
 ## Stage 4 — Bar and windows
-- [x] SketchyBar paper tags with ink icons (day and night ink), Indonesian clock, Open-Meteo weather, battery
+- [x] ~~SketchyBar paper tags with ink icons, Indonesian clock, Open-Meteo weather, battery~~ (retired in revision round 3: the island shows the time and battery)
 - [x] JankyBorders ink outlines
 - [x] macOS: menu bar auto-hide (applied live through System Events), warm accent
 

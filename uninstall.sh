@@ -13,8 +13,8 @@ rm -f $HOME/Library/LaunchAgents/id.kamar.app.plist
 pkill -x Kamar 2>/dev/null
 rm -rf $HOME/Applications/Kamar.app
 
-say "Mematikan SketchyBar dan JankyBorders"
-brew services stop felixkratz/formulae/sketchybar >/dev/null 2>&1
+say "Mematikan JankyBorders"
+brew services stop felixkratz/formulae/sketchybar >/dev/null 2>&1  # from installs before the bar was retired
 brew services stop felixkratz/formulae/borders >/dev/null 2>&1
 
 say "Melepas config dan mengembalikan yang lama"

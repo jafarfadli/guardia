@@ -10,12 +10,14 @@ enum Snapshot {
         let isl = delegate.island
         let fake = NowPlaying.Track(source: "Spotify", id: "x", title: "Sampai Jadi Debu", artist: "Banda Neira", playing: true,
                                     duration: 236, position: 81, stamp: Date(), art: nil, artHex: [])
-        func shot(_ name: String, _ size: CGSize, setup: () -> Void) {
+        func shot(_ name: String, setup: () -> Void) {
             setup()
+            let s = isl.targetSize()
             let v = isl.view
-            v.frame = CGRect(x: 0, y: 0, width: size.width + 12, height: size.height + 6)
+            v.frame = CGRect(x: 0, y: 0, width: s.width + 12, height: s.height + 6)
             v.appearance = NSAppearance(named: name.hasSuffix("dark") ? .darkAqua : .aqua)
             guard let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return }
+            v.cacheDisplay(in: v.bounds, to: rep) // first pass places the search field
             v.cacheDisplay(in: v.bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: out.appendingPathComponent("island-\(name).png"))
         }
@@ -28,20 +30,29 @@ enum Snapshot {
         var track = fake
         if let (pix, hex) = Pixelate.cover(g.makeImage()!, size: 16, colors: 6) { track.art = pix; track.artHex = hex }
 
-        shot("idle", isl.targetSize()) { isl.nowPlaying = nil }
-        shot("music", CGSize(width: 330, height: 30)) { isl.nowPlaying = track }
-        isl.view.peek = true
-        shot("music-open", CGSize(width: 400, height: 116)) {}
-        shot("music-open-dark", CGSize(width: 400, height: 116)) {}
+        shot("status") { isl.nowPlaying = nil }
+        shot("status-dark") {}
+        shot("status-music") { isl.nowPlaying = track }
+        shot("music-open") { isl.view.peek = true }
+        shot("music-open-dark") {}
         isl.view.peek = false
         delegate.focus.start(minutes: 25, rest: false)
-        shot("timer", CGSize(width: 150, height: 30)) { isl.nowPlaying = nil }
-        shot("timer-open", CGSize(width: 300, height: 92)) {}
+        shot("status-timer") { isl.nowPlaying = nil }
         delegate.focus.stop()
-        isl.view.toast = ("plug", "Ngecas · 82%")
-        shot("toast", CGSize(width: 220, height: 30)) {}
+        shot("status-toast") { isl.showToast(icon: "plug", text: "Ngecas · 82%") }
         isl.view.toast = nil
-        shot("idle-open", CGSize(width: 330, height: 92)) {}
+        shot("search") { isl.previewSearch("") }
+        shot("search-dark") {}
+        shot("search-timer") { isl.previewSearch("timer 10 masak") }
+        shot("search-alarm") { isl.previewSearch("alarm 7.30 bangun") }
+        shot("search-claude") { isl.previewSearch("claude") }
+        shot("search-claude-list") { isl.previewSearch("", list: .claude) }
+        shot("search-music") { isl.previewSearch("putar sheila on 7") }
+        isl.endPreviewSearch()
+        shot("ring") { isl.ring(title: "Alarm 07.30", subtitle: "bangun", action: ("tunda 5 menit", {}), dismiss: {}) }
+        isl.endRing()
+        shot("visit") { isl.showGuard(site: "YouTube", seconds: 5, allow: {}) }
+        isl.endGuard()
 
         // si Oren: one frame from each animation on paper, to check how the sheets are sliced
         let picks = [("idle", 0), ("walk", 0), ("walk", 6), ("tap", 1), ("purr", 3), ("sleep", 0), ("stretch", 5), ("dangle", 2)]

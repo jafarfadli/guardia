@@ -7,6 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let music = NowPlaying()
     let power = Power()
     let focus = FocusTimer()
+    let alarms = Alarms()
+    let focusGuard = FocusGuard()
+    let ringer = Ringer()
+    lazy var launcher = Launcher(music: music, timer: focus, alarms: alarms, focus: focusGuard, pet: pet)
     private var status: NSStatusItem!
     private let prefs = UserDefaults.standard
 
@@ -23,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if args.contains("--restore-wallpaper") { DesktopPicture.restore(); exit(0) }
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
             island.timer = focus
+            island.launcher = launcher
             Snapshot.run(into: CommandLine.arguments[i + 1], delegate: self)
             return
         }
@@ -31,12 +36,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if wallpaperOn { wallpaper.start() }
 
         island.timer = focus
+        island.launcher = launcher
+        island.power = power.state
+        launcher.fill = { [weak self] t in self?.island.fill(t) }
         island.actions = (
             prev: { [weak self] in self?.music.previous() },
             play: { [weak self] in self?.music.playPause() },
-            next: { [weak self] in self?.music.next() },
-            focus: { [weak self] mins, rest in self?.focus.start(minutes: mins, rest: rest) }
+            next: { [weak self] in self?.music.next() }
         )
+        focusGuard.timer = focus
+        focusGuard.pet = pet
+        focusGuard.island = island
+        focusGuard.petAround = { [weak self] in self?.petOn ?? false }
+        focusGuard.onChange = { [weak self] in guard let self else { return }; self.island.focusOn = self.focusGuard.on }
+        alarms.onRing = { [weak self] a in
+            guard let self else { return }
+            self.ring(title: "Alarm \(Alarms.clock(a.date))", subtitle: a.label.isEmpty ? "sudah waktunya" : a.label,
+                      action: ("tunda 5 menit", { [weak self] in self?.alarms.snooze(a) }))
+        }
+        alarms.onMissed = { [weak self] a in self?.island.showToast(icon: "bell", text: "Alarm \(Alarms.clock(a.date)) terlewat saat Mac tidur", seconds: 8) }
+        alarms.onChange = { [weak self] in self?.island.refresh() }
+        alarms.start()
         island.onMenu = { [weak self] view, p in
             guard let self else { return }
             self.buildMenu().popUp(positioning: nil, at: p, in: view)
@@ -56,16 +76,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         power.onChange = { [weak self] old, new in
             guard let self else { return }
+            self.island.power = new
             self.wallpaper.lowPower = !new.onAC
             if new.onAC && !old.onAC { self.island.showToast(icon: "plug", text: "Ngecas · \(new.percent)%") }
             if !new.onAC && new.percent <= 15 && old.percent > 15 { self.island.showToast(icon: "low", text: "Baterai tinggal \(new.percent)%", seconds: 5) }
         }
         focus.onChange = { [weak self] in self?.island.refresh() }
-        focus.onFinish = { [weak self] wasRest in
+        focus.onFinish = { [weak self] kind, name in
             guard let self else { return }
-            self.island.showToast(icon: "bell", text: wasRest ? "Istirahat selesai, lanjut yuk" : "Waktunya istirahat sebentar", seconds: 7, expand: true)
-            self.pet.celebrate()
-            NSSound(named: "Glass")?.play()
+            switch kind {
+            case .focus:
+                self.focusGuard.end()
+                self.ring(title: "Fokus selesai", subtitle: "si Oren bangga. Istirahat sebentar?",
+                          action: ("istirahat 5 menit", { [weak self] in self?.focus.start(seconds: 300, kind: .rest) }))
+            case .rest:
+                self.ring(title: "Istirahat selesai", subtitle: "lanjut yuk", action: ("fokus 25 menit", { [weak self] in self?.focusGuard.begin(minutes: 25) }))
+            case .timer:
+                self.ring(title: "Timer selesai", subtitle: name, action: ("tambah 5 menit", { [weak self] in self?.focus.start(seconds: 300, kind: .timer, label: name == "timer" ? "" : name) }))
+            }
         }
 
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -73,14 +101,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.menu = buildMenu()
     }
 
+    /// The island rings with a bell until dismissed (a minute at most); si Oren gets excited.
+    private var ringID = 0
+    private func ring(title: String, subtitle: String, action: (String, () -> Void)?) {
+        ringID += 1
+        let id = ringID
+        let stop = { [weak self] in
+            guard let self, self.ringID == id else { return }
+            self.ringer.stop(); self.island.endRing()
+        }
+        ringer.start()
+        pet.celebrate()
+        island.ring(title: title, subtitle: subtitle, action: action.map { a in (a.0, { stop(); a.1() }) }, dismiss: stop)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 62) { stop() }
+    }
+
     // kamar://focus/25 · kamar://rest/5 · kamar://stop · kamar://pet/come
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             let parts = ([url.host ?? ""] + url.pathComponents.filter { $0 != "/" })
             switch parts.first {
-            case "focus": focus.start(minutes: Int(parts.dropFirst().first ?? "25") ?? 25, rest: false)
+            case "focus": focusGuard.begin(minutes: Int(parts.dropFirst().first ?? "25") ?? 25)
             case "rest": focus.start(minutes: Int(parts.dropFirst().first ?? "5") ?? 5, rest: true)
-            case "stop": focus.stop()
+            case "stop": launcher.stopTimer()
+            case "search": island.openSearch()
             case "pet": pet.comeHere()
             case "playpause": music.playPause()
             default: break
@@ -96,10 +140,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let on { i.state = on ? .on : .off }
             return i
         }
-        m.addItem(item("Fokus 25 menit", #selector(startFocus(_:)), 25))
-        m.addItem(item("Fokus 50 menit", #selector(startFocus(_:)), 50))
+        m.addItem(item("Cari…", #selector(openSearch)))
+        m.addItem(.separator())
+        m.addItem(item("Mode fokus 25 menit", #selector(startFocus(_:)), 25))
+        m.addItem(item("Mode fokus 50 menit", #selector(startFocus(_:)), 50))
         m.addItem(item("Istirahat 5 menit", #selector(startRest(_:)), 5))
-        if focus.running { m.addItem(item("Hentikan timer", #selector(stopTimer))) }
+        if focus.running || focusGuard.on { m.addItem(item("Hentikan timer dan mode fokus", #selector(stopTimer))) }
         m.addItem(.separator())
         m.addItem(item("Panggil si Oren", #selector(callPet)))
         m.addItem(item("si Oren", #selector(togglePet), on: petOn))
@@ -111,9 +157,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return m
     }
 
-    @objc private func startFocus(_ s: NSMenuItem) { focus.start(minutes: s.tag, rest: false) }
+    @objc private func openSearch() { island.openSearch() }
+    @objc private func startFocus(_ s: NSMenuItem) { focusGuard.begin(minutes: s.tag) }
     @objc private func startRest(_ s: NSMenuItem) { focus.start(minutes: s.tag, rest: true) }
-    @objc private func stopTimer() { focus.stop() }
+    @objc private func stopTimer() { launcher.stopTimer() }
     @objc private func callPet() { if petOn { pet.comeHere() } }
     @objc private func togglePet() { petOn.toggle(); petOn ? pet.start() : pet.stop() }
     @objc private func toggleIsland() { islandOn.toggle(); islandOn ? island.start() : island.stop() }
