@@ -124,27 +124,66 @@ final class PetController {
     }
 
     // A panel that doesn't activate its app still shows over full-screen apps, whatever its
-    // collection behaviour says. So: when the app in front fills the whole screen, put him away,
-    // except over Chrome, where he walks the bottom edge instead.
+    // collection behaviour says. So: when an app fills the whole screen, put him away, except
+    // over Chrome, where he walks the bottom edge instead (in a full-screen Space, no Dock).
     private func checkFullScreen() {
         guard running else { return }
-        let app = PetController.fullScreenApp(on: screen)
-        let stay = app == "com.google.Chrome"
-        let hide = app != nil && !stay
-        if stay != noDock {
-            noDock = stay
+        let fs = PetController.fullScreen(on: screen)
+        seenFullScreen = fs.map { ($0.space ? "space " : "window ") + $0.apps.joined(separator: " ") } ?? "-"
+        let stay = fs?.apps.contains("com.google.Chrome") ?? false
+        let hide = fs != nil && !stay
+        let dockless = stay && fs?.space == true
+        if dockless != noDock {
+            noDock = dockless
             floorCache = nil
             // a lower floor: he drops to it; a higher one: he is simply there
-            if stay && !hide && ![.dangle, .fall, .leap].contains(state) && !swipingUp { vy = 0; set(.fall, for: 5) }
+            if dockless && ![.dangle, .fall, .leap].contains(state) && !swipingUp { vy = 0; set(.fall, for: 5) }
         }
         guard hide != hiddenForFullScreen else { return }
         hiddenForFullScreen = hide
         if hide { landHit(); panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
+    private var seenFullScreen = "-"
 
-    /// The bundle id of the app in front when one of its windows covers the whole screen (full
-    /// screen, or a window as big as it), else nil. Covers, not equals: Chrome's full-screen
-    /// window reaches past the screen's edge, and an exact match missed it.
+    /// What fills the screen: the apps of the full-screen Space showing on it (`space`: macOS
+    /// hides the Dock there), or on an ordinary desktop the app in front when one of its windows
+    /// covers the whole screen. Nil when neither. Window sizes alone can't tell full screen:
+    /// Chrome splits itself there into toolbar windows and a page window below them.
+    static func fullScreen(on screen: NSScreen) -> (apps: [String], space: Bool)? {
+        if let apps = fullScreenSpaceApps(on: screen) { return (apps, true) }
+        return fullScreenApp(on: screen).map { ([$0], false) }
+    }
+
+    // SkyLight, the window server's private framework, loaded at run time and only read: its
+    // list of Spaces says which one each display shows and whose it is.
+    private typealias MainConnection = @convention(c) () -> Int32
+    private typealias CopySpaces = @convention(c) (Int32) -> Unmanaged<CFArray>?
+    private static let copySpaces: (() -> [[String: Any]]?)? = {
+        guard let h = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW),
+              let c = dlsym(h, "SLSMainConnectionID") ?? dlsym(h, "CGSMainConnectionID"),
+              let s = dlsym(h, "SLSCopyManagedDisplaySpaces") ?? dlsym(h, "CGSCopyManagedDisplaySpaces") else { return nil }
+        let connection = unsafeBitCast(c, to: MainConnection.self), copy = unsafeBitCast(s, to: CopySpaces.self)
+        return { copy(connection())?.takeRetainedValue() as? [[String: Any]] }
+    }()
+
+    /// The bundle ids of the apps in the full-screen Space `screen` shows now (two in Split
+    /// View), or nil when it shows an ordinary desktop or the Spaces can't be read.
+    private static func fullScreenSpaceApps(on screen: NSScreen) -> [String]? {
+        guard let displays = copySpaces?() else { return nil }
+        let uuid = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)
+            .flatMap { CGDisplayCreateUUIDFromDisplayID($0.uint32Value)?.takeRetainedValue() }
+            .map { CFUUIDCreateString(nil, $0) as String } ?? ""
+        // one entry per display ("Main" for all of them when displays share their Spaces)
+        let display = displays.first { ($0["Display Identifier"] as? String)?.caseInsensitiveCompare(uuid) == .orderedSame } ?? displays.first
+        // type 4 is a full-screen Space; its tiles are the apps in it
+        guard let space = display?["Current Space"] as? [String: Any], (space["type"] as? Int) == 4 else { return nil }
+        let tiles = ((space["TileLayoutManager"] as? [String: Any])?["TileSpaces"] as? [[String: Any]]) ?? []
+        let pids = ([space["pid"]] + tiles.map { $0["pid"] }).compactMap { ($0 as? NSNumber)?.int32Value }
+        return Set(pids).compactMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
+    }
+
+    /// The bundle id of the app in front when one of its windows covers the whole screen (a
+    /// window as big as the screen, no full-screen Space), else nil.
     static func fullScreenApp(on screen: NSScreen) -> String? {
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
               let main = NSScreen.screens.first,
@@ -165,7 +204,7 @@ final class PetController {
     /// For `guardia://status`: what Maestro is doing and when his loop last ticked.
     var debugState: [String: Any] {
         ["running": running, "state": "\(state)", "x": Double(pos.x), "y": Double(pos.y), "lastTickAgo": CACurrentMediaTime() - last,
-         "hiddenForFullScreen": hiddenForFullScreen, "noDock": noDock, "visible": panel.isVisible]
+         "hiddenForFullScreen": hiddenForFullScreen, "noDock": noDock, "fullScreen": seenFullScreen, "visible": panel.isVisible]
     }
 
     // 20 Hz while moving, 10 Hz otherwise (still quick enough to catch every keypress)
