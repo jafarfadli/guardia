@@ -155,6 +155,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 default: setIsland(true)
                 }
             case "playpause": music.playPause()
+            case "icons":
+                // guardia://icons/apply · guardia://icons/restore: run the icon script in a terminal of
+                // the user's own (only a terminal they allow may change other apps)
+                let verb = parts.dropFirst().first == "restore" ? "restore" : "apply"
+                if let repo = AppIcons.repo { Projects.terminal(in: repo, run: "./scripts/app-icons.sh \(verb)") }
             case "status": writeStatus()
             default: break
             }

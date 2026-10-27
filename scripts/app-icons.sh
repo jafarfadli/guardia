@@ -40,12 +40,21 @@ run() { # $1: --set-icons or --restore-icons
     out=$(sudo $GUARDIA $1 $DIR/system.json) || failed=1
     print -r -- "$out" | sed 's/^/    /'
   fi
-  if (( failed )); then
-    say "Sebagian gagal: macOS belum mengizinkan terminal ini mengubah app."
-    print -r -- "    Di jendela yang terbuka, nyalakan terminal yang kamu pakai (misalnya Ghostty) di App Management,"
-    print -r -- "    lalu jalankan perintah ini lagi."
-    open "x-apple.systempreferences:com.apple.preference.security?Privacy_AppBundles" 2>/dev/null
-  fi
+  return $failed
+}
+
+# macOS lets only terminals allowed under App Management change other apps: on a refusal,
+# open that setting, wait for the switch, and try once more
+run_allowed() {
+  run $1 && return 0
+  say "macOS belum mengizinkan terminal ini mengubah app."
+  print -r -- "    Di jendela yang terbuka, nyalakan Ghostty (atau terminal yang kamu pakai) di App Management."
+  open "x-apple.systempreferences:com.apple.preference.security?Privacy_AppBundles" 2>/dev/null
+  read "?    Tekan Enter setelah dinyalakan… "
+  run $1 && return 0
+  say "Masih ditolak. Tutup terminal ini sepenuhnya (⌘Q), buka lagi, lalu jalankan:"
+  print -r -- "    cd $ROOT && ./scripts/app-icons.sh ${2:-apply}"
+  return 1
 }
 
 case ${1:-apply} in
@@ -53,15 +62,16 @@ case ${1:-apply} in
     say "Menggambar ikon"
     node $ROOT/scripts/render-icons.mjs || exit 1
     say "Memasang ikon"
-    run --set-icons
+    run_allowed --set-icons apply
     say "Merapikan Dock"
     python3 $ROOT/scripts/dock.py apply
     killall Dock 2>/dev/null
+    say "Selesai. Ikon baru muncul di Dock dan Finder."
     ;;
   restore)
     [[ -f $DIR/manifest.json ]] || { echo "Belum ada ikon yang dipasang."; exit 0 }
     say "Mengembalikan ikon asli"
-    run --restore-icons
+    run_allowed --restore-icons restore
     python3 $ROOT/scripts/dock.py restore
     killall Dock 2>/dev/null
     ;;
