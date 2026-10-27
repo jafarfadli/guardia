@@ -1,6 +1,10 @@
 """Render the day: one frame per phase, plus frames.json for the web layer.
 
 usage: blender -b --factory-startup --python blender/render.py -- [--scale 1.0] [--only 1.53,0.0]
+       [--overcast 1.0,1.4 | --overcast all] [--no-overcast]
+
+Without --only, every phase is rendered, clear and overcast. With --only, only those clear
+phases (none: no clear ones), plus the overcast ones named by --overcast.
 """
 import json
 import math
@@ -25,6 +29,8 @@ def arg(name, default=None):
 PHASES = [0.0, 0.14, 0.24, 0.32, 0.42, 0.52, 0.62, 0.74, 0.86, 1.0]
 PHASES += [round(1.02 + 0.03 * i, 3) for i in range(29)]
 PHASES += [1.89, 1.94, 1.98]
+# the same day under cloud, for when the weather says so (no beam, so these crossfade)
+OVERCAST = [0.55, 1.0, 1.2, 1.4, 1.6, 1.78]
 
 OUT = os.path.join(core.ROOT, 'wallpaper', 'frames')
 
@@ -58,30 +64,47 @@ def beam_points(S):
     return pts
 
 
+def render_frame(ph, weather, name):
+    lk = lights.apply(ph, CAL, weather)
+    png = os.path.join(OUT, name + '.png')
+    bpy.context.scene.render.filepath = png
+    bpy.ops.render.render(write_still=True)
+    webp = os.path.join(OUT, name + '.webp')
+    # sharp_yuv keeps the ink lines crisp where they cross coloured paint
+    subprocess.run(['cwebp', '-quiet', '-q', '90', '-m', '6', '-sharp_yuv', png, '-o', webp], check=True)
+    os.remove(png)
+    print('FRAME', name, lk['name'], round(lk['sunI'], 2), flush=True)
+    return {'phase': ph, 'file': name + '.webp', 'name': lk['name'], 'sunI': round(lk['sunI'], 3),
+            'lamp': round(lk['lamp'], 3), 'beam': beam_points(lk['S']) if lk['sunI'] > 0.01 else []}
+
+
 def main():
     scale = float(arg('scale', '1.0'))
-    only = [float(x) for x in arg('only').split(',')] if arg('only') else PHASES
+    only = [] if arg('only') == 'none' else [float(x) for x in arg('only').split(',')] if arg('only') else PHASES
+    ov = arg('overcast')
+    if '--no-overcast' in argv:
+        cloudy = []
+    elif ov == 'all' or (ov is None and not arg('only')):
+        cloudy = OVERCAST
+    else:
+        cloudy = [float(x) for x in ov.split(',')] if ov else []
     build(scale)
     os.makedirs(OUT, exist_ok=True)
     meta_path = os.path.join(OUT, 'frames.json')
-    meta = json.load(open(meta_path)) if os.path.exists(meta_path) and arg('only') else {'frames': []}
+    keep = os.path.exists(meta_path) and (arg('only') or ov or '--no-overcast' in argv)
+    old = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+    meta = old if keep else {'frames': [], 'overcast': [], 'masks': old.get('masks', {})}
     meta['overlays'] = {k: [screen(p) for p in quad] for k, quad in props.OVERLAYS.items()}
     meta['aspect'] = 2880 / 1800
     done = {f['phase']: f for f in meta['frames']}
     for ph in only:
-        lk = lights.apply(ph, CAL)
-        name = f'f{int(round(ph * 1000)):04d}'
-        png = os.path.join(OUT, name + '.png')
-        bpy.context.scene.render.filepath = png
-        bpy.ops.render.render(write_still=True)
-        webp = os.path.join(OUT, name + '.webp')
-        # sharp_yuv keeps the ink lines crisp where they cross coloured paint
-        subprocess.run(['cwebp', '-quiet', '-q', '90', '-m', '6', '-sharp_yuv', png, '-o', webp], check=True)
-        os.remove(png)
-        done[ph] = {'phase': ph, 'file': name + '.webp', 'name': lk['name'], 'sunI': round(lk['sunI'], 3),
-                    'lamp': round(lk['lamp'], 3), 'beam': beam_points(lk['S']) if lk['sunI'] > 0.01 else []}
-        print('FRAME', name, lk['name'], round(lk['sunI'], 2), flush=True)
+        done[ph] = render_frame(ph, None, f'f{int(round(ph * 1000)):04d}')
         meta['frames'] = sorted(done.values(), key=lambda f: f['phase'])
+        json.dump(meta, open(meta_path, 'w'), indent=1)
+    grey = {f['phase']: f for f in meta.get('overcast', [])}
+    for ph in cloudy:
+        grey[ph] = render_frame(ph, 'overcast', f'o{int(round(ph * 1000)):04d}')
+        meta['overcast'] = sorted(grey.values(), key=lambda f: f['phase'])
         json.dump(meta, open(meta_path, 'w'), indent=1)
     if '--save' in argv:
         bpy.ops.wm.save_as_mainfile(filepath=os.path.join(core.ROOT, 'blender', 'kamar.blend'))

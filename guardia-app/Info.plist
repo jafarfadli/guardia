@@ -16,6 +16,9 @@
   <!-- the wallpaper and Maestro must keep moving while other apps are in front -->
   <key>NSAppSleepDisabled</key><true/>
   <key>NSAppleEventsUsageDescription</key><string>Guardia memakai Apple Events untuk mengontrol Spotify dari dynamic island, membuka Claude Code di Ghostty, dan (hanya saat mode fokus) membaca serta menutup tab Chrome yang mengganggu.</string>
+  <key>NSLocationUsageDescription</key><string>Guardia memakai lokasi Mac untuk cuaca di jendela kamar dan posisi matahari. Hanya posisi yang dibulatkan (sekitar 10 km) yang dikirim ke layanan cuaca.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>Guardia memakai lokasi Mac untuk cuaca di jendela kamar dan posisi matahari. Hanya posisi yang dibulatkan (sekitar 10 km) yang dikirim ke layanan cuaca.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>Guardia membaca baterai AirPods dan aksesori Bluetooth untuk jarum baterai di kamar.</string>
   <key>CFBundleURLTypes</key>
   <array><dict><key>CFBundleURLName</key><string>id.guardia.app</string><key>CFBundleURLSchemes</key><array><string>guardia</string></array></dict></array>
 </dict>

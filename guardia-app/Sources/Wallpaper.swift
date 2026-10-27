@@ -6,7 +6,10 @@ import WebKit
 // taken from that page at that moment, and the page (and its memory) goes away.
 // macOS may kill a live page's process while the desktop is covered (memory pressure); the page
 // is then reloaded, and a check every minute reloads any page that stopped answering.
-final class WallpaperController: NSObject, WKNavigationDelegate {
+// A page says "ready" once its script runs (navigation's didFinish can come first, when nothing
+// on the page can listen yet); it then gets the song, the battery state, the widgets and the
+// location.
+final class WallpaperController: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     private var windows: [CGDirectDisplayID: NSWindow] = [:]
     private var views: [WKWebView] = []
     private let scheme = ResourceScheme()
@@ -17,6 +20,8 @@ final class WallpaperController: NSObject, WKNavigationDelegate {
     private var lastAnswer: [String: Any] = [:]
     var lowPower = false { didSet { broadcast("window.guardia && window.guardia.setLowPower(\(lowPower))") } }
     var nowPlayingJS = "window.guardia && window.guardia.setNowPlaying(null)"
+    private var widgets: [String: Any] = [:]
+    private var location: (Double, Double)?
 
     func start(live: Bool) {
         guard !running else { return }
@@ -124,6 +129,7 @@ final class WallpaperController: NSObject, WKNavigationDelegate {
         let cfg = WKWebViewConfiguration()
         cfg.setURLSchemeHandler(scheme, forURLScheme: "guardia")
         cfg.suppressesIncrementalRendering = true
+        cfg.userContentController.add(WeakMessages(self), name: "guardia")
         let web = WKWebView(frame: CGRect(origin: .zero, size: size), configuration: cfg)
         web.setValue(false, forKey: "drawsBackground")
         web.autoresizingMask = [.width, .height]
@@ -142,10 +148,19 @@ final class WallpaperController: NSObject, WKNavigationDelegate {
         load(webView)
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        // a fresh page needs the song and the battery state again
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { sendState(to: webView) }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "guardia", (message.body as? String) == "ready", let web = message.webView else { return }
+        sendState(to: web)
+    }
+
+    /// A fresh page needs everything again: the battery state, the song, the widgets, the place.
+    private func sendState(to webView: WKWebView) {
         webView.evaluateJavaScript("window.guardia && window.guardia.setLowPower(\(lowPower))", completionHandler: nil)
         webView.evaluateJavaScript(nowPlayingJS, completionHandler: nil)
+        if let js = WallpaperController.widgetsJS(widgets) { webView.evaluateJavaScript(js, completionHandler: nil) }
+        if let (lat, lon) = location { webView.evaluateJavaScript("window.guardia && window.guardia.setLocation(\(lat), \(lon))", completionHandler: nil) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { retry(webView) }
@@ -185,6 +200,29 @@ final class WallpaperController: NSObject, WKNavigationDelegate {
         nowPlayingJS = "window.guardia && window.guardia.setNowPlaying(\(json))"
         broadcast(nowPlayingJS)
     }
+
+    /// The widgets that changed (see Widgets); a fresh page gets all of them.
+    func setWidgets(_ part: [String: Any]) {
+        widgets.merge(part) { _, new in new }
+        if let js = WallpaperController.widgetsJS(part) { broadcast(js) }
+    }
+
+    func setLocation(_ lat: Double, _ lon: Double) {
+        location = (lat, lon)
+        broadcast("window.guardia && window.guardia.setLocation(\(lat), \(lon))")
+    }
+
+    private static func widgetsJS(_ part: [String: Any]) -> String? {
+        guard !part.isEmpty, let data = try? JSONSerialization.data(withJSONObject: part), let json = String(data: data, encoding: .utf8) else { return nil }
+        return "window.guardia && window.guardia.setWidgets && window.guardia.setWidgets(\(json))"
+    }
+}
+
+// The page's messages without the content controller keeping the wallpaper alive.
+final class WeakMessages: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+    init(_ t: WKScriptMessageHandler) { target = t }
+    func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) { target?.userContentController(c, didReceive: m) }
 }
 
 // Serves the bundled web files at guardia://app/… so ES modules load with proper types.

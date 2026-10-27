@@ -1,14 +1,14 @@
 # Guardia
 
-Desktop Mac ini sekarang adalah satu ruangan yang digambar seperti **komik yang dicetak di kertas tua** (lihat [DESIGN.md](DESIGN.md)). Cahaya di ruangan mengikuti matahari sungguhan. Barang-barangnya ikut hidup: jam dan kalender di dinding, piringan hitam yang sedang diputar, dan Maestro, kucing oren yang tinggal di lantai.
+Desktop Mac ini sekarang adalah satu ruangan yang digambar seperti **komik yang dicetak di kertas tua** (lihat [DESIGN.md](DESIGN.md)). Cahaya di ruangan mengikuti matahari dan cuaca sungguhan di tempatmu. Barang-barangnya ikut hidup: jam dan kalender di dinding, piringan hitam yang sedang diputar, catatanmu di papan tulis, streak GitHub di papan gabus, sesi Claude di layar komputer, jarum baterai, lampu lalu lintas yang menunjukkan seberapa sibuk Mac, dan Maestro, kucing oren yang tinggal di lantai.
 
 ## Isinya
 
 | Bagian | Apa | Di mana |
 |---|---|---|
-| Wallpaper hidup | Ruangan 3D yang dirender di **Blender** dengan shading cel (5 tingkat cahaya), garis tinta Freestyle, dan grade cetak pudar. Ada 42 gambar sepanjang hari: pagi cahaya dingin dari jendela timur, sore berkas sinar matahari masuk lewat jendela sampai ke karpet dengan debu berkilau di dalamnya, malam lampu belajar yang berpendar dan lampu tumblr. Jam dinding, kalender sobek (lengkap dengan pasaran Jawa), dan sampul lagu Spotify dicetak live di atasnya | `blender/`, `wallpaper/` |
+| Wallpaper hidup | Ruangan 3D yang dirender di **Blender** dengan shading cel (5 tingkat cahaya), garis tinta Freestyle yang dicetak paling akhir (tidak tertutup kabut berkas cahaya), dan grade cetak pudar. Ada 42 gambar sepanjang hari: pagi cahaya dingin dari jendela timur, sore berkas sinar matahari masuk lewat jendela sampai ke karpet dengan debu berkilau di dalamnya, malam lampu belajar yang berpendar dan lampu tumblr. Ditambah 6 gambar mendung untuk hari berawan atau hujan: tanpa berkas cahaya, ruangan sejuk. Jam dinding, kalender sobek (lengkap dengan pasaran Jawa), sampul lagu Spotify, dan widget-widget kamar dicetak live di atasnya (lihat **Kamar** di bawah) | `blender/`, `wallpaper/` |
 | Maestro | Kucing oren chibi bergaya tinta, satu siluet utuh. Jalan-jalan di lantai di setiap desktop (disembunyikan saat ada app layar penuh di depan), tidur kalau kamu tinggal, menepuk-nepuk saat kamu mengetik, mendengkur kalau diklik. Saat mode fokus, dia menjaga Chrome | `pet/`, `guardia-app/Sources/Pet.swift` |
-| Dynamic island | Tab kertas di tengah atas: jam dan baterai, dengan lagu atau timer di tengahnya. Klik untuk membuka menu dan pencarian: Claude Code, VS Code, Spotify, Timer, Alarm, Mode fokus | `guardia-app/Sources/Island.swift`, `Launcher.swift` |
+| Dynamic island | Tab kertas di tengah atas: jam, dengan lagu atau timer di sampingnya; baterai hanya muncul saat tinggal ≤20% dan tidak dicas. Klik untuk membuka menu dan pencarian: Claude Code, Catatan, VS Code, Spotify, Timer, Alarm, Mode fokus | `guardia-app/Sources/Island.swift`, `Launcher.swift` |
 | Border jendela | Garis tinta di jendela aktif, garis pudar di jendela lain (JankyBorders) | `dotfiles/borders/` |
 | Tema app | VS Code (Kertas / Kertas Malam), Ghostty, Spotify (Spicetify), Chrome | `dotfiles/` |
 | Ikon app | 29 app (WhatsApp, LINE, Telegram, Discord, Office, VS Code, Chrome, Unity, Blender, Spotify, Roblox, dan lainnya) digambar ulang sebagai kartu kertas bertinta; Dock dikelompokkan: sistem · sosial · kerja · hiburan | `icons/`, `scripts/app-icons.sh` |
@@ -18,11 +18,12 @@ Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tok
 ## Cara pakai
 
 **Island**
-- Dalam keadaan kecil, island menampilkan jam dan baterai. Lagu yang diputar atau timer yang berjalan muncul di antaranya.
+- Dalam keadaan kecil, island menampilkan jam. Lagu yang diputar atau timer yang berjalan muncul di sampingnya. Baterai Mac baru ikut tampil saat tinggal 20% atau kurang dan tidak sedang dicas (selebihnya baterai ada di jarum di kamar).
 - Arahkan kursor ke island saat lagu diputar untuk kontrol lagu, atau saat timer berjalan untuk tombol berhenti.
 - **Klik island** untuk membuka menu. Pilih dengan ↑↓ lalu Enter, atau langsung ketik untuk mencari. Esc untuk kembali atau menutup. Setiap menu menanyakan satu hal saja:
   - **Claude Code** → pilih folder di `~/Koding` (atau Home). Terminal Ghostty baru terbuka dan langsung menjalankan `claude`.
-  - **VS Code** → pilih folder di `~/Koding`, lalu folder itu terbuka di VS Code. ⌘↵ membuka Claude Code di folder itu.
+  - **Catatan** → halaman bergaris untuk menulis catatan. Satu baris satu poin. Awali dengan `- ` untuk butir, `x ` untuk yang sudah selesai (dicoret), `# ` untuk judul. Esc untuk selesai. Isinya langsung tertulis dengan kapur di papan tulis kamar, dan disimpan di `~/.guardia/notes.txt`.
+  - **VS Code** → pilih folder di `~/Koding`, lalu folder itu terbuka di VS Code. ⌘↵ membuka Claude Code di folder itu. Baris paling atas, **Folder baru**, meminta nama, membuat foldernya di `~/Koding` (lengkap dengan ikon kertasnya), lalu membukanya di VS Code (⌘↵: di Claude Code).
   - **Spotify**: *Putar / Jeda*, *Lagu berikutnya*, dan judul lagu apa saja untuk dicari di Spotify. Tempel link playlist Spotify untuk menyimpannya sebagai favorit; berikutnya cukup ketik namanya.
   - **Timer** → ketik jumlah menit, boleh dengan label (`10`, `25 masak`), atau pilih 5–60 menit.
   - **Alarm** → ketik jamnya, boleh dengan label (`6.30`, `7.30 bangun`). Alarm yang sudah dipasang bisa dihapus dari sini.
@@ -38,6 +39,16 @@ Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tok
 - Menu kucing → *Panggil Maestro* membuatnya berjalan ke arah kursor.
 - **Mode fokus:** begitu tab Chrome yang sedang kamu lihat adalah Instagram, TikTok, YouTube, atau X, Maestro melompat ke tab itu dan langsung mencakarnya sampai tertutup, kira-kira sedetik. Island memberi tahu situs apa yang ditutup. Kalau Maestro sedang tidak terlihat (dimatikan, atau Chrome dalam layar penuh), tabnya langsung ditutup tanpa lompatan.
 
+**Kamar** (widget di wallpaper)
+- **Papan tulis** di kiri: catatan dari island, ditulis dengan kapur. Kalau kosong, ada gambar Maestro tidur.
+- **Kartu GitHub** di papan gabus: jumlah hari berturut-turut kamu berkontribusi di GitHub (akun yang login di `gh`), dan stempel merah untuk tiap hari aktif dalam 15 minggu terakhir. Hari ini belum memutus streak sampai hari berganti. Diperbarui tiap 30 menit.
+- **Layar komputer**: sesi Claude Code yang Remote Control-nya menyala. Titik **hijau** berarti sedang bekerja, **merah** berarti diam atau menunggu kamu. Kalau tidak ada sesi Remote Control, layar menampilkan kode seperti biasa.
+- **Panel jarum** di atas meja: baterai MAC, IPHONE, AIRPODS, dan satu lagi (iPad, Magic Mouse, Keyboard, atau Trackpad). Perangkat yang tidak tersambung jarumnya diam di bawah nol. Petir kecil berarti sedang dicas; angka merah berarti ≤20%.
+  - AirPods dan aksesori Bluetooth terbaca saat tersambung ke Mac.
+  - iPhone/iPad terbaca lewat kabel, atau lewat Wi-Fi setelah disiapkan sekali: colok iPhone ke Mac, pilih **Trust**, lalu di Finder pilih iPhone-nya dan centang **Show this iPhone when on Wi-Fi**. Setelah itu cukup satu jaringan Wi-Fi.
+- **Lampu lalu lintas** di atas rak buku: seberapa sibuk Mac. Hijau = santai, kuning = sibuk (prosesor di atas 60%, memori mulai sesak, atau mulai panas), merah = berat (prosesor di atas 85%, memori kritis, atau panas).
+- **Jendela**: cuaca sungguhan di lokasi Mac (dari Open-Meteo). Cerah, berawan sebagian (awan lewat), mendung (ruangan sejuk tanpa berkas cahaya), hujan (hujan turun dan tetesan di kaca), badai (sesekali kilat), kabut. Malam yang cerah ada bintang.
+
 **Menu Guardia**: klik ikon kucing di menu bar macOS (gerakkan kursor ke tepi atas) untuk mode fokus, menyalakan atau mematikan Maestro dan island, atau keluar. *Wallpaper hidup* yang dimatikan tidak mengembalikan wallpaper lama: ruangan dibekukan menjadi gambar diam dari saat itu (di semua Space, dan juga jadi gambar layar kunci), dan memori untuk halaman hidupnya dilepas.
 
 **Dari Terminal, Raycast, atau Shortcuts**:
@@ -50,17 +61,20 @@ open -g guardia://pet/come        # panggil Maestro (pet/on, pet/off)
 open -g guardia://wallpaper/off   # bekukan wallpaper jadi gambar diam (wallpaper/on untuk hidup lagi)
 open -g guardia://playpause       # play / pause musik
 open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json
+open -g guardia://weather/rain    # coba cuaca di jendela (clear, partly, cloudy, rain, storm, fog) sampai laporan cuaca berikutnya
 ```
 
 ## Mengubah sesuatu
 
 - **Warna dan font**: edit `design/tokens.json`, lalu jalankan `node scripts/build-themes.mjs && ./install.sh`.
-- **Lokasi matahari**: `location` di `design/tokens.json` (bawaan: Jakarta).
+- **Lokasi** (matahari dan cuaca): diambil dari lokasi Mac lewat Location Services. Kalau izinnya ditolak, dipakai `location` di `design/tokens.json` (bawaan: Jakarta). Ke layanan cuaca hanya dikirim posisi yang dibulatkan (±10 km).
 - **Ruangan**: dibangun lewat script di `blender/kamar/` (`room.py`, `props.py`, `lights.py`). File `blender/kamar.blend` bisa dibuka langsung di Blender untuk dilihat atau diutak-atik. Setelah mengubah script:
   ```sh
   blender -b --factory-startup --python blender/build.py -- --scale 0.5 --phase 1.53 --out build/blender/coba.png   # uji satu gambar
-  blender -b --factory-startup --python blender/render.py -- --scale 1.0 --save                                       # render ulang sehari penuh (±20 menit)
+  blender -b --factory-startup --python blender/render.py -- --scale 1.0 --save                                       # render ulang sehari penuh, cerah dan mendung (±1 jam)
+  blender -b --factory-startup --python blender/masks.py                                                             # mask widget dan jendela (setelah benda dipindah)
   node scripts/preview.mjs --times 07:30,16:30,21:00                                                                  # lihat hasil akhirnya di build/preview/
+  node scripts/preview.mjs --times 21:00 --query "demo=1&weather=rain"                                                # dengan widget contoh dan hujan
   ```
 - **Maestro**: `pet/poses.js`, lalu `node scripts/render-assets.mjs`.
 
@@ -91,6 +105,9 @@ open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json
   - *"Guardia ingin mengontrol Spotify"*: saat island pertama kali membaca lagu atau menekan play/pause.
   - *"Guardia ingin mengontrol Ghostty"*: saat pertama kali membuka Claude Code.
   - *"Guardia ingin mengontrol Google Chrome"*: saat pertama kali mode fokus melihat tab Chrome. Chrome hanya dibaca selama mode fokus dan saat Chrome ada di depan.
+- Untuk widget kamar, macOS bertanya sekali:
+  - *"Guardia ingin menggunakan lokasi Anda"*: untuk cuaca dan posisi matahari. Kalau ditolak, dipakai Jakarta.
+  - *"Guardia ingin menggunakan Bluetooth"*: untuk baterai AirPods dan aksesori.
 
 ## Membatalkan semuanya
 
@@ -104,4 +121,7 @@ Perintah ini mengembalikan menu bar, warna aksen, wallpaper lama, setelan VS Cod
 - Command Line Tools di Mac ini menyimpan `usr/include/swift/module.modulemap` lama yang membuat `swiftc` gagal. `guardia-app/build.sh` menyembunyikannya lewat VFS overlay, jadi tidak perlu sudo. Perbaikan permanennya adalah memasang ulang Command Line Tools.
 - Setelah Spotify update, jalankan `spicetify backup apply` sekali lagi.
 - Kalau menu bar macOS masih terlihat: System Settings → Control Center → *Automatically hide and show the menu bar* → **Always**.
-- Wallpaper hanya digambar ulang kalau cahayanya berubah. Di malam hari ruangan statis dan hanya jarum jam yang bergerak. Debu di sinar matahari hanya beranimasi saat sore.
+- Wallpaper digambar ulang sekali semenit, dan saat sebuah widget berubah. Gambar tiap widget disimpan, jadi yang tidak berubah tidak digambar lagi. Debu di sinar matahari hanya beranimasi saat sore; hujan di jendela adalah kanvas kecil yang hanya bergerak saat hujan (diam saat Mac pakai baterai, dan berhenti sendiri saat desktop tertutup jendela).
+- Garis-garis halus yang dulu kadang muncul di wallpaper (ronde 6) ternyata dari butiran film: rumus acaknya kehabisan presisi setelah wallpaper menyala beberapa menit. Rumusnya sudah diganti.
+- Saat *Wallpaper hidup* dimatikan, ruangan beku menjadi gambar diam, termasuk widget-widgetnya. Nyalakan lagi supaya catatan, baterai, dan lainnya ikut berubah.
+- Daftar sesi Claude dibaca dari `~/.claude/sessions/`, catatan internal Claude Code, bukan format yang dijanjikan. Kalau versi Claude Code berikutnya mengubahnya, layar kembali menampilkan kode saja.

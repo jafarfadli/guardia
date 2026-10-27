@@ -11,6 +11,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let focusGuard = FocusGuard()
     let ringer = Ringer()
     let folderIcons = FolderIcons()
+    // what the room shows: notes, GitHub, Claude's sessions, batteries, the Mac's load, weather
+    let widgets = Widgets()
+    let notes = Notes()
+    let sessions = ClaudeSessions()
+    let github = GitHubStreak()
+    let load = SystemLoad()
+    let batteries = Batteries()
+    let weather = Weather()
     lazy var launcher = Launcher(music: music, timer: focus, alarms: alarms, focus: focusGuard, pet: pet)
     private var status: NSStatusItem!
     private var iconCheck: Timer?
@@ -32,6 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
             island.timer = focus
             island.launcher = launcher
+            island.notes = notes
+            launcher.notes = notes
             Snapshot.run(into: CommandLine.arguments[i + 1], delegate: self)
             return
         }
@@ -43,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         island.timer = focus
         island.launcher = launcher
         island.power = power.state
+        island.notes = notes
+        launcher.notes = notes
+        launcher.openNotes = { [weak self] in self?.island.openNotes() }
+        startWidgets()
         launcher.fill = { [weak self] t in self?.island.fill(t) }
         island.actions = (
             prev: { [weak self] in self?.music.previous() },
@@ -82,6 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.island.power = new
             self.wallpaper.lowPower = !new.onAC
+            self.batteries.publish()
             if new.onAC && !old.onAC { self.island.showToast(icon: "plug", text: "Ngecas · \(new.percent)%") }
             if !new.onAC && new.percent <= 15 && old.percent > 15 { self.island.showToast(icon: "low", text: "Baterai tinggal \(new.percent)%", seconds: 5) }
         }
@@ -115,6 +130,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.menu = buildMenu()
     }
 
+    /// Every source of the room's widgets reports to `widgets`, which hands the changes to the page.
+    private func startWidgets() {
+        widgets.wallpaper = wallpaper
+        notes.onChange = { [weak self] t in self?.widgets.set("notes", t) }
+        widgets.set("notes", notes.text)
+        sessions.onChange = { [weak self] list in self?.widgets.set("sessions", list.map { ["name": $0.name, "running": $0.running] }) }
+        sessions.start()
+        github.onChange = { [weak self] card in self?.widgets.set("github", card) }
+        github.start()
+        load.onChange = { [weak self] level in self?.widgets.set("load", level) }
+        load.start()
+        batteries.onChange = { [weak self] dials in self?.widgets.set("batteries", dials) }
+        batteries.start()
+        weather.onLocation = { [weak self] lat, lon in self?.wallpaper.setLocation(lat, lon) }
+        weather.onWeather = { [weak self] w in self?.widgets.set("weather", w) }
+        weather.start()
+    }
+
     /// The island rings with a bell until dismissed (a minute at most); Maestro gets excited.
     private var ringID = 0
     private func ring(title: String, subtitle: String, action: (String, () -> Void)?) {
@@ -130,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 62) { stop() }
     }
 
-    // guardia://focus/25 · guardia://rest/5 · guardia://stop · guardia://pet/come
+    // guardia://focus/25 · guardia://rest/5 · guardia://stop · guardia://pet/come · guardia://weather/rain
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             let parts = ([url.host ?? ""] + url.pathComponents.filter { $0 != "/" })
@@ -163,6 +196,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let verb = parts.dropFirst().first == "restore" ? "restore" : "apply"
                 if let repo = AppIcons.repo { Projects.terminal(in: repo, run: "./scripts/app-icons.sh \(verb)") }
             case "status": writeStatus()
+            case "weather":
+                // guardia://weather/rain (clear, partly, cloudy, rain, storm, fog): try a sky until
+                // the next real report, at most twenty minutes later
+                if let kind = parts.dropFirst().first { widgets.set("weather", ["kind": kind, "amount": 0.7]) }
             default: break
             }
         }
@@ -218,11 +255,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".guardia")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let s: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "pet": pet.debugState, "wallpaper": wallpaper.debugState,
-                                "island": ["running": island.running, "searching": island.searching], "folders": folderIcons.debugState, "focus": focusGuard.on, "timer": focus.running,
-                                "alarms": alarms.list.count]
+                                "island": ["running": island.running, "searching": island.searching, "notes": island.editingNotes], "folders": folderIcons.debugState,
+                                "focus": focusGuard.on, "timer": focus.running, "alarms": alarms.list.count,
+                                "widgets": widgets.debugState, "load": load.debug, "weather": weather.debug]
         if let d = try? JSONSerialization.data(withJSONObject: s, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: dir.appendingPathComponent("status.json")) }
     }
-    @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func quit() { notes.flush(); NSApp.terminate(nil) }
 
     static func catIcon() -> NSImage {
         let img = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { r in

@@ -92,46 +92,60 @@ def freestyle(scale):
     vl = s.view_layers[0]
     vl.use_freestyle = True
     fs = vl.freestyle_settings
-    fs.crease_angle = math.radians(134)
+    # A two-segment bevel turns a 90° edge in three joints of 157.5°, 135° and 157.5°. A crease
+    # threshold between 135° and 157.5° inks the middle joint only: one line per bevelled edge.
+    # (At 134° no bevelled edge was inked at all, so the desk and drawers had no lines.)
+    fs.crease_angle = math.radians(142)
     fs.use_culling = True
+    # The strokes come out as a pass of their own and are laid over the finished image (see
+    # ink_over), like the key plate printed last. Drawn inside the render, the dusty air veiled
+    # them: the further an object, the fainter its ink, and inside the beam it vanished.
+    fs.as_render_pass = True
     for ls in list(fs.linesets):
         fs.linesets.remove(ls)
-    ls = fs.linesets.new('ink')
+    # every silhouette and border a little heavier, creases and material edges lighter
+    _lineset(fs, 'outline', scale, 1.0, ('silhouette', 'border'))
+    _lineset(fs, 'inner', scale, 0.62, ('crease', 'material_boundary'))
+    ink_over()
+
+
+def _lineset(fs, name, scale, weight, edges):
+    ls = fs.linesets.new(name)
     ls.select_by_visibility = True
     ls.visibility = 'VISIBLE'
     ls.select_by_edge_types = True
-    ls.select_silhouette = True
-    ls.select_border = True
-    ls.select_crease = True
-    ls.select_material_boundary = True
-    # contour and external contour retrace the silhouette; two wobbling copies of one edge
-    # read as a blurred line, so they stay off
-    ls.select_external_contour = False
-    ls.select_contour = False
+    for e in ('silhouette', 'border', 'crease', 'material_boundary', 'contour', 'external_contour'):
+        setattr(ls, 'select_' + e, e in edges)
     ls.select_by_collection = True
     ls.collection = core.collection('NoInk')
     ls.collection_negation = 'EXCLUSIVE'
-    st = ls.linestyle
+    st = bpy.data.linestyles.new(name)
+    ls.linestyle = st
     st.color = core.hex_rgba(core.TOKENS['ink']['color'])[:3]
-    st.thickness = 2.0 * scale * 2
+    st.thickness = 2.0 * scale * 2 * weight
     st.thickness_position = 'CENTER'
     st.caps = 'ROUND'
     st.chaining = 'PLAIN'
     st.use_same_object = True
-    # lines thin out and fade with distance (DESIGN.md: ink lines)
+    # inside the room the weight barely changes with distance (DESIGN.md: "varies slightly")
     d = st.thickness_modifiers.new('distance', 'DISTANCE_FROM_CAMERA')
-    d.range_min, d.range_max = 1.6, 9.0
-    d.value_min, d.value_max = 1.15, 0.55
+    d.range_min, d.range_max = 1.6, 8.0
+    d.value_min, d.value_max = 1.1, 0.8
     d.mapping = 'LINEAR'
     d.blend = 'MULTIPLY'
-    # far lines fade toward a lighter brown but stay opaque: a see-through line smears into the
-    # surface under it and reads as blur
+    # the street outside thins and fades so the background stays calm; still opaque, because a
+    # see-through line smears into the surface under it and reads as blur
+    far = st.thickness_modifiers.new('far', 'DISTANCE_FROM_CAMERA')
+    far.range_min, far.range_max = 7.0, 30.0
+    far.value_min, far.value_max = 1.0, 0.45
+    far.mapping = 'LINEAR'
+    far.blend = 'MULTIPLY'
     c = st.color_modifiers.new('fade', 'DISTANCE_FROM_CAMERA')
-    c.range_min, c.range_max = 3.0, 10.0
+    c.range_min, c.range_max = 7.0, 30.0
     c.blend = 'MIX'
     ramp = c.color_ramp.elements
     ramp[0].color = core.hex_rgba(core.TOKENS['ink']['color'])
-    ramp[1].color = core.hex_rgba('#4A362B')
+    ramp[1].color = core.hex_rgba('#6B5444')
     # a slightly tapered stroke like a hand-inked line (no thickness noise: it doubles the width)
     al = st.thickness_modifiers.new('taper', 'ALONG_STROKE')
     al.mapping = 'CURVE'
@@ -147,6 +161,26 @@ def freestyle(scale):
     g.frequency = 3
     g.amplitude = 0.15 * scale * 2
     return ls
+
+
+def ink_over():
+    """Compositor: the Freestyle pass over the combined image (beam, dust and all)."""
+    s = bpy.context.scene
+    g = bpy.data.node_groups.get('ink-over') or bpy.data.node_groups.new('ink-over', 'CompositorNodeTree')
+    for n in list(g.nodes):
+        g.nodes.remove(n)
+    if not g.interface.items_tree:
+        g.interface.new_socket('Image', in_out='OUTPUT', socket_type='NodeSocketColor')
+    N, L = g.nodes, g.links
+    rl = N.new('CompositorNodeRLayers')
+    rl.scene = s
+    over = N.new('CompositorNodeAlphaOver')
+    ins = [i for i in over.inputs if i.type == 'RGBA']
+    L.new(rl.outputs['Image'], ins[0])
+    L.new(rl.outputs['Freestyle'], ins[1])
+    out = N.new('NodeGroupOutput')
+    L.new(over.outputs[0], out.inputs[0])
+    s.compositing_node_group = g
 
 
 def build(scale):

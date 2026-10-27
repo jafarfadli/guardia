@@ -5,6 +5,8 @@ import { rng } from '../wallpaper/src/math.js';
 
 const T = (c) => c; // base colours; Blender does the lighting
 const INK = '#2B1C14';
+// the GitHub card on the cork board: x, y, w, h (px) and a turn in radians (see cork())
+export const CARD = [366, 30, 420, 520, 0.02];
 
 function canvas(w, h) {
   const c = document.createElement('canvas');
@@ -43,40 +45,102 @@ function scribble(ctx, x, y, w, rows, gap, seed) {
 }
 
 export const TEXTURES = {
-  // the cork board: four pieces, big enough to read as what they are
+  // The cork board (1 px = 1 mm). The card in the middle is GitHub's: printed live with the
+  // streak and the last weeks (wallpaper/src/widgets.js). Its place must match CORK['card'] in
+  // blender/kamar/props.py.
   cork() {
-    const [c, ctx] = canvas(1100, 620);
+    const W = 1096, H = 596;
+    const [c, ctx] = canvas(W, H);
     const r = rng(808);
-    ctx.fillStyle = '#B98A57'; ctx.fillRect(0, 0, 1100, 620);
-    for (let i = 0; i < 2600; i++) { ctx.fillStyle = r() < 0.5 ? '#9C6E42' : '#CDA172'; const s = 1.5 + r() * 2.5; ctx.fillRect(r() * 1100, r() * 620, s, s * 0.8); }
-    paper(ctx, 60, 70, 250, 290, -0.07, '#F2EADB', (g) => {
-      g.fillStyle = '#9FB8C8'; g.fillRect(20, 20, 210, 200);
-      drawPerson(g, 36, 70, 7.5, person(11, 'hijab'), T);
-      drawPerson(g, 122, 62, 8, person(23, 'short'), T);
-      g.fillStyle = INK; g.font = '700 28px "Shantell Sans"'; g.fillText('pantai!', 70, 262);
+    ctx.fillStyle = '#B98A57'; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 2600; i++) { ctx.fillStyle = r() < 0.5 ? '#9C6E42' : '#CDA172'; const s = 1.5 + r() * 2.5; ctx.fillRect(r() * W, r() * H, s, s * 0.8); }
+    paper(ctx, 26, 64, 300, 330, -0.07, '#F2EADB', (g) => {
+      g.fillStyle = '#9FB8C8'; g.fillRect(20, 20, 260, 236);
+      drawPerson(g, 44, 86, 8.6, person(11, 'hijab'), T);
+      drawPerson(g, 146, 76, 9, person(23, 'short'), T);
+      g.fillStyle = INK; g.font = '700 32px "Shantell Sans"'; g.fillText('pantai!', 82, 300);
     });
-    paper(ctx, 380, 50, 300, 330, 0.04, '#EFE5CF', (g) => {
-      g.fillStyle = '#B04A3A'; g.fillRect(40, 0, 3, 330);
-      g.fillStyle = INK; g.font = '800 44px "Shantell Sans"'; g.fillText('besok', 60, 66);
-      scribble(g, 60, 128, 210, 4, 52, 3);
+    paper(ctx, ...CARD, '#EFE5CF', (g) => {
+      const [, , w] = CARD;
+      g.fillStyle = '#C38F33'; g.fillRect(0, 0, w, 76);
+      g.fillStyle = '#EFE5CF'; g.font = '44px "Alfa Slab One"'; g.textBaseline = 'middle';
+      g.fillText('GITHUB', 26, 41);
+      g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 76); g.lineTo(w, 76); g.stroke();
     });
-    paper(ctx, 740, 80, 310, 210, -0.05, '#EFE5CF', (g) => {
-      g.fillStyle = '#9FB8C8'; g.fillRect(14, 14, 282, 182);
-      g.fillStyle = '#E9B66A'; g.beginPath(); g.arc(210, 82, 36, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#6F7A48'; g.beginPath(); g.moveTo(14, 140); g.quadraticCurveTo(100, 76, 180, 136); g.quadraticCurveTo(240, 108, 296, 128); g.lineTo(296, 196); g.lineTo(14, 196); g.fill();
-      g.fillStyle = '#3F6874'; g.fillRect(14, 162, 282, 34);
+    paper(ctx, 814, 44, 252, 174, -0.05, '#EFE5CF', (g) => {
+      g.fillStyle = '#9FB8C8'; g.fillRect(14, 14, 224, 146);
+      g.fillStyle = '#E9B66A'; g.beginPath(); g.arc(170, 66, 30, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#6F7A48'; g.beginPath(); g.moveTo(14, 112); g.quadraticCurveTo(80, 60, 144, 108); g.quadraticCurveTo(192, 86, 238, 102); g.lineTo(238, 160); g.lineTo(14, 160); g.fill();
+      g.fillStyle = '#3F6874'; g.fillRect(14, 132, 224, 28);
     });
-    paper(ctx, 800, 360, 210, 200, 0.1, '#E6C766', (g) => {
+    paper(ctx, 840, 300, 212, 202, 0.1, '#E6C766', (g) => {
       g.strokeStyle = INK; g.lineWidth = 5;
       g.beginPath(); g.ellipse(108, 128, 60, 40, 0, 0, Math.PI * 2); g.stroke();
       g.beginPath(); g.arc(64, 86, 30, 0, Math.PI * 2); g.stroke();
       g.beginPath(); g.moveTo(42, 66); g.lineTo(44, 40); g.lineTo(62, 58); g.moveTo(70, 56); g.lineTo(86, 38); g.lineTo(90, 64); g.stroke();
       g.beginPath(); g.moveTo(166, 128); g.quadraticCurveTo(202, 100, 190, 64); g.stroke();
     });
-    for (const [x, y, col] of [[185, 82, '#B04A3A'], [530, 60, '#3F6874'], [895, 92, '#C38F33'], [905, 372, '#3F6874']]) {
+    for (const [x, y, col] of [[172, 76, '#B04A3A'], [748, 46, '#3F6874'], [940, 56, '#C38F33'], [946, 312, '#3F6874']]) {
       ctx.fillStyle = 'rgba(43,28,20,0.35)'; ctx.beginPath(); ctx.arc(x + 4, y + 5, 13, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    }
+    return c;
+  },
+  // The chalkboard's slate (1.5 px = 1 mm): dark green with clouds of old, wiped-off chalk. The
+  // notes are chalked over it live.
+  slate() {
+    const W = 1440, H = 930;
+    const [c, ctx] = canvas(W, H);
+    const r = rng(77);
+    ctx.fillStyle = '#34463D'; ctx.fillRect(0, 0, W, H);
+    // wiped chalk: soft sweeps from an eraser, a little lighter where it was wiped least
+    ctx.filter = 'blur(22px)';
+    for (let i = 0; i < 24; i++) {
+      const x = r() * W, y = r() * H, rx = 140 + r() * 260, ry = 26 + r() * 40;
+      ctx.fillStyle = `rgba(232,224,204,${0.03 + r() * 0.04})`;
+      ctx.beginPath(); ctx.ellipse(x, y, rx, ry, (r() - 0.5) * 0.4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.filter = 'none';
+    // ghosts of old words, and a tally in the corner nobody wiped
+    ctx.strokeStyle = 'rgba(232,224,204,0.06)'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    for (let row = 0; row < 4; row++) {
+      let x = 110 + r() * 260; const y = 150 + row * 170 + r() * 30, end = x + 260 + r() * 300;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      while (x < end) { const st = 14 + r() * 18; ctx.quadraticCurveTo(x + st / 2, y - 10 - r() * 10, x + st, y + (r() - 0.5) * 4); x += st; }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(232,224,204,0.18)'; ctx.lineWidth = 5;
+    for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(W - 150 + k * 20, H - 104); ctx.lineTo(W - 146 + k * 20, H - 44); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(W - 162, H - 58); ctx.lineTo(W - 66, H - 92); ctx.stroke();
+    return c;
+  },
+  // The battery board (2 px = 1 mm): four dials on cherry wood, each with a blank label plate.
+  // Needles, numbers and names are printed live. Dial centres must match battery_panel().
+  gauges() {
+    const W = 1488, H = 488;
+    const [c, ctx] = canvas(W, H);
+    ctx.fillStyle = '#7E3B2B'; ctx.fillRect(0, 0, W, H);
+    const R = 128;
+    for (let k = 0; k < 4; k++) {
+      const cx = (k + 0.5) * (W / 4), cy = H * 0.4;
+      ctx.fillStyle = '#EFE5CF'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+      // the red band at the low end, then ticks every tenth over a 240° sweep
+      const ang = (f) => (-210 + f * 240) * Math.PI / 180;
+      ctx.strokeStyle = '#B04A3A'; ctx.lineWidth = 16;
+      ctx.beginPath(); ctx.arc(cx, cy, R * 0.8, ang(0), ang(0.2)); ctx.stroke();
+      ctx.strokeStyle = INK;
+      for (let i = 0; i <= 10; i++) {
+        const a = ang(i / 10), big = i % 5 === 0;
+        ctx.lineWidth = big ? 7 : 4;
+        const r0 = R * (big ? 0.62 : 0.7), r1 = R * 0.88;
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.stroke();
+      }
+      ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+      // label plate
+      const pw = 250, ph = 84, px = cx - pw / 2, py = H - ph - 22;
+      ctx.fillStyle = '#E4D3AE'; ctx.fillRect(px, py, pw, ph);
+      ctx.lineWidth = 4; ctx.strokeRect(px, py, pw, ph);
     }
     return c;
   },

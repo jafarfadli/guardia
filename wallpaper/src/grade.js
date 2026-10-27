@@ -9,7 +9,9 @@ void main(){ vUv = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
 const COMMON = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
-float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+// Dave Hoskins' hash12: it scales its input down before fract(), so it stays random for inputs
+// in the thousands (the old one multiplied by ~450 first and ran out of float precision)
+float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
   return mix(mix(hash(i), hash(i+vec2(1,0)), u.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), u.x), u.y); }
 float fbm(vec2 p){ float s = 0.0, a = 0.5; for(int i=0;i<5;i++){ s += a*vnoise(p); p = p*2.03 + 17.1; a *= 0.5; } return s; }
@@ -75,7 +77,9 @@ uniform sampler2D uTex; uniform vec2 uRes; uniform float uTime, uGrain;
 void main(){
   vec3 c = texture(uTex, vUv).rgb;
   vec2 px = floor(vUv * uRes / 2.0); // whole 2-px cells: 1.5-px cells beat into a fine grid
-  float t = floor(uTime * 12.0);
+  // the time stays small too: a page that had run for a while fed hash() numbers so large that
+  // float precision ran out, and the grain turned into regular vertical stripes
+  float t = mod(floor(uTime * 12.0), 97.0);
   float n = hash(px + vec2(t * 17.31, t * 41.73)) - 0.5;
   float n2 = hash(px.yx * 1.7 + vec2(t * 3.1, 7.7)) - 0.5;
   float l = dot(c, vec3(0.299, 0.587, 0.114));

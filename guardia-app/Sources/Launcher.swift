@@ -1,11 +1,11 @@
 import AppKit
 
-// The island's search. The top level is a short menu (Claude Code, VS Code, Spotify, Timer,
-// Alarm, Mode fokus); each of those opens its own list that asks for one thing: a folder in
-// ~/Koding, minutes, or a clock time. Typing at the top level also finds projects, songs and
-// any row by name.
+// The island's search. The top level is a short menu (Claude Code, Catatan, VS Code, Spotify,
+// Timer, Alarm, Mode fokus); each of those opens its own list that asks for one thing: a folder
+// in ~/Koding (or a name for a new one), minutes, or a clock time. Catatan opens the notes page.
+// Typing at the top level also finds projects, songs and any row by name.
 struct Command {
-    enum Icon { case terminal, code, music, next, prev, folder, timer, alarm, focus, cat, search, star, stop, home }
+    enum Icon { case terminal, code, music, next, prev, folder, timer, alarm, focus, cat, search, star, stop, home, notes }
     var title: String
     var subtitle: String = ""
     var icon: Icon
@@ -18,10 +18,12 @@ struct Command {
 }
 
 final class Launcher {
-    enum List { case root, claude, code, timer, alarm, focus }
+    enum List { case root, claude, code, newFolder, timer, alarm, focus }
     private(set) var list: List = .root
     var fill: ((String) -> Void)?
     var onList: ((List) -> Void)?
+    var notes: Notes?
+    var openNotes: (() -> Void)?
 
     private let music: NowPlaying
     private let timer: FocusTimer
@@ -44,6 +46,7 @@ final class Launcher {
         case .root: return nil
         case .claude: return ("Claude Code", .terminal)
         case .code: return ("VS Code", .code)
+        case .newFolder: return ("Folder baru", .folder)
         case .timer: return ("Timer", .timer)
         case .alarm: return ("Alarm", .alarm)
         case .focus: return ("Mode fokus", .focus)
@@ -53,6 +56,7 @@ final class Launcher {
         switch list {
         case .root: return "cari: claude, code, lagu, timer, alarm, fokus…"
         case .claude, .code: return "pilih folder di Koding…"
+        case .newFolder: return "nama folder baru di Koding…"
         case .timer: return "berapa menit? misal 10 atau 10 masak"
         case .alarm: return "jam berapa? misal 6.30 atau 7.30 bangun"
         case .focus: return "berapa menit? misal 25"
@@ -63,6 +67,7 @@ final class Launcher {
         case .root: return "↵ jalankan  ·  ↑↓ pilih  ·  esc tutup"
         case .claude: return "↵ buka terminal  ·  esc kembali"
         case .code: return "↵ buka di VS Code  ·  ⌘↵ Claude Code  ·  esc kembali"
+        case .newFolder: return "↵ buat lalu buka di VS Code  ·  ⌘↵ buat lalu Claude Code  ·  esc kembali"
         case .timer, .alarm, .focus: return "↵ mulai  ·  esc kembali"
         }
     }
@@ -74,6 +79,7 @@ final class Launcher {
         case .root: return Array(rootRows(q, raw: text).prefix(12))
         case .claude: return filter(folderRows(claude: true), q)
         case .code: return filter(folderRows(claude: false), q)
+        case .newFolder: return newFolderRows(text)
         case .timer: return timerRows(q)
         case .alarm: return alarmRows(q)
         case .focus: return focusRows(q)
@@ -114,6 +120,9 @@ final class Launcher {
         }
         rows.append(Command(title: "Claude Code", subtitle: "pilih folder, lalu terminal baru menjalankan claude", icon: .terminal,
                             keywords: "claude code cc terminal ghostty ai baru new", boost: q.isEmpty ? 7 : 0, keepOpen: true) { [weak self] in self?.enter(.claude) })
+        let first = notes?.text.split(separator: "\n").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
+        rows.append(Command(title: "Catatan", subtitle: first.isEmpty ? "tulis poin, muncul di papan tulis kamar" : first, icon: .notes,
+                            keywords: "catatan notes note todo tulis papan tulis daftar", boost: q.isEmpty ? 6.5 : 0) { [weak self] in self?.openNotes?() })
         rows.append(Command(title: "VS Code", subtitle: "pilih folder di Koding untuk dibuka", icon: .code,
                             keywords: "vscode visual studio code editor project proyek buka open", boost: q.isEmpty ? 6 : 0, keepOpen: true) { [weak self] in self?.enter(.code) })
         rows.append(Command(title: "Timer", subtitle: "hitung mundur dalam menit", icon: .timer,
@@ -179,6 +188,10 @@ final class Launcher {
             let home = FileManager.default.homeDirectoryForCurrentUser
             rows.append(Command(title: "Home", subtitle: "~", icon: .home, keywords: "home rumah ~") { Projects.claude(in: home) })
         }
+        if !claude {
+            rows.append(Command(title: "Folder baru", subtitle: "buat folder di Koding lalu buka di VS Code", icon: .folder,
+                                keywords: "baru new folder buat bikin proyek project", keepOpen: true) { [weak self] in self?.enter(.newFolder) })
+        }
         for p in Projects.all() {
             if claude {
                 rows.append(Command(title: p.name, subtitle: Launcher.tilde(p.url), icon: .folder) { Projects.claude(in: p.url) })
@@ -187,6 +200,25 @@ final class Launcher {
             }
         }
         return rows
+    }
+
+    private func newFolderRows(_ raw: String) -> [Command] {
+        let name = raw.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return [] }
+        guard !name.contains("/"), !name.contains(":"), !name.hasPrefix("."), name.count <= 100 else {
+            return [Command(title: "Nama ini tidak bisa dipakai", subtitle: "tanpa / atau :, dan tidak diawali titik", icon: .stop, keepOpen: true) {}]
+        }
+        let url = Projects.koding.appendingPathComponent(name)
+        let p = Projects.Project(name: name, url: url)
+        if FileManager.default.fileExists(atPath: url.path) {
+            return [Command(title: "“\(name)” sudah ada", subtitle: "buka saja di VS Code", icon: .folder, hint: "⌘↵ claude",
+                            alt: { Projects.claude(in: url) }) { Projects.openInCode(p) }]
+        }
+        let make = { (then: () -> Void) in
+            if (try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)) != nil { then() }
+        }
+        return [Command(title: "Buat “\(name)”", subtitle: Launcher.tilde(url) + " · lalu buka di VS Code", icon: .folder, hint: "⌘↵ claude",
+                        alt: { make { Projects.claude(in: url) } }) { make { Projects.openInCode(p) } }]
     }
 
     private func filter(_ rows: [Command], _ q: String) -> [Command] {

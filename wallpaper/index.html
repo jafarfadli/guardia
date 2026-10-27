@@ -13,6 +13,11 @@
   #dust i { position: absolute; border-radius: 50%; will-change: transform, opacity;
             background: radial-gradient(circle, rgba(255,240,205,.95) 0, rgba(255,214,160,.55) 38%, rgba(255,200,140,0) 70%); }
   .lowpower #dust i { animation-play-state: paused; }
+  #rain { position: fixed; pointer-events: none; display: none; }
+  /* lightning: the whole room lifts for a blink, twice */
+  #flash { position: fixed; inset: 0; pointer-events: none; background: #FFF4DC; mix-blend-mode: screen; opacity: 0; }
+  #flash.on { animation: flash 1s ease-out; }
+  @keyframes flash { 0% { opacity: 0; } 5% { opacity: .2; } 11% { opacity: .03; } 17% { opacity: .28; } 100% { opacity: 0; } }
 </style>
 </head>
 <body>

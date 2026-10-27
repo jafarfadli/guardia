@@ -5,7 +5,7 @@ import bpy
 from mathutils import Vector
 
 from .core import (ROOM_W as W, ROOM_D as D, ROOM_H as H, WIN, TOKENS, box, cylinder, plane, tube, material, prism,
-                   toon_group, color, hex_rgba, collection, rng)
+                   toon_group, color, hex_rgba, collection, rng, mesh_obj)
 
 
 def _toon_material(name, hatch=0.0):
@@ -111,26 +111,79 @@ def build_shell():
     T = 0.12  # wall thickness for the boxes (the window wall is thicker)
     near = -3.0
     # floor
-    floor = box('floor', 0, W, near, D, -0.1, 0, plank_material(), C, bev=0)
+    # the floor sits 2 mm low: everything standing on it keeps an inked bottom edge instead of a
+    # face lying exactly in the floor, which Freestyle may count as hidden. The walls run down
+    # past it, so no gap at their foot lets the sky through.
+    floor = box('floor', 0, W, near, D, -0.1, -0.002, plank_material(), C, bev=0)
     # back wall, right wall, ceiling
-    box('wall-back', -WIN['wall_t'], W + T, D, D + T, 0, H, paint, C, bev=0)
-    right = box('wall-right', W, W + T, near, D, 0, H, paint, C, bev=0)
+    box('wall-back', -WIN['wall_t'], W + T, D, D + T, -0.1, H, paint, C, bev=0)
+    right = box('wall-right', W, W + T, near, D, -0.1, H, paint, C, bev=0)
     from .core import cut as _cut
     _cut(right, (W - 0.1, W + T + 0.1, 1.7, 3.3, 0.8, 2.3))  # the east window, out of frame
     box('ceiling', -WIN['wall_t'], W + T, near, D + T, H, H + 0.1, ceil, C, bev=0)
     # window wall (x from -wall_t to 0) built around the opening
     t = WIN['wall_t']
     y0, y1, z0, z1 = WIN['y0'], WIN['y1'], WIN['z0'], WIN['z1']
-    wall = box('wall-left', -t, 0, near, D, 0, H, paint, C, bev=0)
-    from .core import cut
-    cut(wall, (-t - 0.1, 0.1, y0, y1, z0, z1))
+    wall = wall_with_window('wall-left', -t, 0, near, D, -0.1, H, (y0, y1, z0, z1), paint, C)
     # skirting and cornice in cherry
-    box('skirt-back', 0, W, D - 0.02, D, 0, 0.1, trim, C, bev=0.003)
-    box('skirt-left', 0, 0.02, near, D - 0.02, 0, 0.1, trim, C, bev=0.003)
+    box('skirt-back', 0, W, D - 0.02, D, -0.002, 0.1, trim, C, bev=0.003)
+    box('skirt-left', 0, 0.02, near, D - 0.02, -0.002, 0.1, trim, C, bev=0.003)
     box('cornice-back', 0, W, D - 0.035, D, H - 0.075, H, trim, C, bev=0.004)
     box('cornice-left', 0, 0.035, near, D - 0.035, H - 0.075, H, trim, C, bev=0.004)
     build_window(C)
+    # Freestyle decides what is hidden on a coarse grid and lets lines through faces many metres
+    # across: the houses outside showed through the floor and the window wall. A finer mesh stops
+    # that, and looks the same (the paint and planks use object space).
+    # (The window wall is built as a fine mesh already; the right wall keeps its boolean cut,
+    # which a subdivision would tear open.)
+    for ob in (floor, bpy.data.objects['wall-back'], bpy.data.objects['ceiling']):
+        sub = ob.modifiers.new('fine', 'SUBSURF')
+        sub.subdivision_type = 'SIMPLE'
+        sub.levels = sub.render_levels = 2
     return C
+
+
+def wall_with_window(name, x0, x1, ya, yb, za, zb, hole, mat, coll, step=0.5):
+    """A solid wall slab (x0..x1 thick, along y and z) with a rectangular opening, made of
+    quads no bigger than `step` so Freestyle's hiding works on it (see build_shell)."""
+    import bmesh
+    hy0, hy1, hz0, hz1 = hole
+    def lines(a, b, extra):
+        vals = {a, b, *extra}
+        v = math.ceil(a / step) * step
+        while v < b:
+            vals.add(round(v, 4))
+            v += step
+        return sorted(vals)
+    ys, zs = lines(ya, yb, (hy0, hy1)), lines(za, zb, (hz0, hz1))
+    inside = lambda y, z: hy0 <= y < hy1 and hz0 <= z < hz1
+    bm = bmesh.new()
+    verts = {}
+    def v(x, y, z):
+        k = (round(x, 5), round(y, 5), round(z, 5))
+        if k not in verts:
+            verts[k] = bm.verts.new(k)
+        return verts[k]
+    def quad(a, b, c, d):
+        bm.faces.new((a, b, c, d))
+    for i in range(len(ys) - 1):
+        for j in range(len(zs) - 1):
+            y_0, y_1, z_0, z_1 = ys[i], ys[i + 1], zs[j], zs[j + 1]
+            if inside(y_0, z_0):
+                continue
+            quad(v(x1, y_0, z_0), v(x1, y_1, z_0), v(x1, y_1, z_1), v(x1, y_0, z_1))  # room side
+            quad(v(x0, y_0, z_0), v(x0, y_0, z_1), v(x0, y_1, z_1), v(x0, y_1, z_0))  # outside
+            # sides where the slab ends or meets the opening
+            for (ny, nz, edge) in ((0, -1, (y_0, z_0, y_1, z_0)), (0, 1, (y_0, z_1, y_1, z_1)),
+                                   (-1, 0, (y_0, z_0, y_0, z_1)), (1, 0, (y_1, z_0, y_1, z_1))):
+                cy, cz = (y_0 + y_1) / 2 + ny * (y_1 - y_0), (z_0 + z_1) / 2 + nz * (z_1 - z_0)
+                outside_slab = not (ya < cy < yb and za < cz < zb)
+                if outside_slab or inside(cy if ny else y_0, cz if nz else z_0) or (ny and inside(cy, z_0)) or (nz and inside(y_0, cz)):
+                    a1, b1, a2, b2 = edge
+                    quad(v(x1, a1, b1), v(x1, a2, b2), v(x0, a2, b2), v(x0, a1, b1))
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return mesh_obj(name, bm, mat, coll)
 
 
 def build_window(C):

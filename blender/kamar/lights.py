@@ -75,6 +75,24 @@ def look(phase):
     return out
 
 
+def overcast(lk):
+    """The same moment under cloud: DESIGN.md's contrast mood. No sun, so no beam and no dust; a
+    cool, weak light from the other side; a brighter, cooler ambient; a grey sky."""
+    p = lk['phase']
+    day = smooth(0.2, 0.6, p) * (1 - smooth(1.8, 1.95, p))  # 1 in full daylight, 0 at night
+    out = dict(lk)
+    for k, grey in (('skyTop', _hexmix('#3A4256', '#8D97A5', day)), ('skyLow', _hexmix('#4A5266', '#BCC1C5', day))):
+        out[k] = tuple(_lerp(lk[k][i], grey[i], 0.85) for i in range(3))
+    out['sunI'] = 0.0
+    out['fill'] = lk['fill'] * 0.85
+    out['fillCol'] = _hexmix('#9AA3C8', '#D5DCE6', day)
+    out['cool'] = max(lk['cool'], 0.8 * day)
+    out['amb'] = lk['amb'] * (1 + 0.1 * day)
+    out['ambTint'] = tuple(_lerp(lk['ambTint'][i], _hexmix('#7E86AE', '#AEB5C6', day)[i], 0.6) for i in range(3))
+    out['weather'] = 'overcast'
+    return out
+
+
 def patch_centre(S):
     """Where the sun through the middle of the window lands on the floor, kept inside the room."""
     p = Vector((WIN['glass_x'], (WIN['y0'] + WIN['y1']) / 2, (WIN['z0'] + WIN['z1']) / 2))
@@ -146,7 +164,7 @@ def air_setup():
     # uneven dust: thicker in slow drifts, never empty
     tc = N.new('ShaderNodeTexCoord')
     noise = N.new('ShaderNodeTexNoise')
-    noise.inputs['Scale'].default_value = 0.9
+    noise.inputs['Scale'].default_value = 0.17  # object space of the air is in metres now
     noise.inputs['Detail'].default_value = 2.0
     L.new(tc.outputs['Object'], noise.inputs['Vector'])
     drift = N.new('ShaderNodeMapRange')
@@ -158,24 +176,39 @@ def air_setup():
     L.new(drift.outputs['Result'], mul.inputs[0]); L.new(dens.outputs[0], mul.inputs[1])
     L.new(mul.outputs[0], vol.inputs['Density'])
     L.new(vol.outputs['Volume'], out.inputs['Volume'])
-    me = bpy.data.meshes.new('RoomAir')
-    ob = bpy.data.objects.new('RoomAir', me)
-    import bmesh
-    bm = bmesh.new()
-    bmesh.ops.create_cube(bm, size=1.0)
-    bm.to_mesh(me)
-    bm.free()
-    me.materials.append(m)
-    ob.scale = (ROOM_W - 0.04, ROOM_D + 0.55, ROOM_H - 0.04)
-    ob.location = (ROOM_W / 2, (ROOM_D - 0.55) / 2, ROOM_H / 2)
+    # The air is a Volume object, its grid made by geometry nodes, not a mesh. Freestyle counts
+    # every mesh as something that hides lines, air included: the old box's faces hid the ink
+    # everywhere but a strip on the right (only the bookshelf, poster and guitar kept their
+    # lines), and the rug, the wall corners and the floor's edges sat just outside it.
+    ng = bpy.data.node_groups.new('room-air-fill', 'GeometryNodeTree')
+    ng.interface.new_socket('Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
+    ng.interface.new_socket('Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
+    cube = ng.nodes.new('GeometryNodeVolumeCube')
+    cube.inputs['Density'].default_value = 1.0
+    cube.inputs['Min'].default_value = (0.0, -1.4, 0.0)  # the camera (y = -0.6) stands in it
+    cube.inputs['Max'].default_value = (ROOM_W, ROOM_D, ROOM_H)
+    for axis, n in zip('XYZ', (54, 66, 28)):
+        cube.inputs['Resolution ' + axis].default_value = n
+    setm = ng.nodes.new('GeometryNodeSetMaterial')
+    setm.inputs['Material'].default_value = m
+    out = ng.nodes.new('NodeGroupOutput')
+    ng.links.new(cube.outputs[0], setm.inputs['Geometry'])
+    ng.links.new(setm.outputs['Geometry'], out.inputs[0])
+    vol = bpy.data.volumes.new('RoomAir')
+    vol.materials.append(m)
+    ob = bpy.data.objects.new('RoomAir', vol)
+    ob.modifiers.new('fill', 'NODES').node_group = ng
     ob.visible_shadow = False
-    collection('NoInk').objects.link(ob)  # no ink around the air
+    collection('NoInk').objects.link(ob)
     return ob
 
 
-def apply(phase, cal):
-    """Set every light for a phase. `cal` holds the calibration multipliers."""
+def apply(phase, cal, weather=None):
+    """Set every light for a phase (and weather: None or 'overcast'). `cal` holds the
+    calibration multipliers."""
     lk = look(phase)
+    if weather == 'overcast':
+        lk = overcast(lk)
     w = bpy.context.scene.world
     nt = w.node_tree
     # sky bands (Generated z runs 0..1 from below to above in world probes; camera rays use the same)
@@ -274,7 +307,9 @@ def apply(phase, cal):
     spill.data.volume_factor = 0.0
     spill.hide_render = lk['lamp'] <= 0.02
     lk['lampOn'] = lk['lamp'] > 0.25
-    bpy.data.materials['room-air'].node_tree.nodes['density'].outputs[0].default_value = cal['air']
+    # under cloud the air holds no glowing dust (DESIGN.md: no beam, no dust)
+    air = cal['air'] * (0.25 if lk.get('weather') == 'overcast' else 1.0)
+    bpy.data.materials['room-air'].node_tree.nodes['density'].outputs[0].default_value = air
     bpy.data.node_groups['KamarToon'].nodes['exposure'].outputs[0].default_value = lk['expo']
     _emission(lk)
     return lk

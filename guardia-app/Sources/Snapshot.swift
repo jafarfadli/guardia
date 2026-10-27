@@ -4,6 +4,9 @@ import WebKit
 // `Guardia --snapshot <dir>` renders the island in each state and the hosted wallpaper to PNGs,
 // so the native surfaces can be checked without screen-recording rights.
 enum Snapshot {
+    // GUARDIA_SNAPSHOT_TIME / _WEATHER pick the wallpaper's moment (default 16:30, clear)
+    static var time: String { ProcessInfo.processInfo.environment["GUARDIA_SNAPSHOT_TIME"] ?? "16:30" }
+    static var weather: String { ProcessInfo.processInfo.environment["GUARDIA_SNAPSHOT_WEATHER"] ?? "clear" }
     static func run(into dir: String, delegate: AppDelegate) {
         let out = URL(fileURLWithPath: dir)
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
@@ -44,6 +47,7 @@ enum Snapshot {
         shot("search") { isl.previewSearch("") }
         shot("search-dark") {}
         shot("search-code") { isl.previewSearch("", list: .code) }
+        shot("search-newfolder") { isl.previewSearch("proyek-baru", list: .newFolder) }
         shot("search-claude") { isl.previewSearch("", list: .claude) }
         shot("search-timer") { isl.previewSearch("", list: .timer) }
         shot("search-timer-typed") { isl.previewSearch("10 masak", list: .timer) }
@@ -52,6 +56,9 @@ enum Snapshot {
         shot("search-project") { isl.previewSearch("seoul") }
         shot("search-music") { isl.previewSearch("putar sheila on 7") }
         isl.endPreviewSearch()
+        shot("notes") { isl.previewNotes("# besok\n- kirim revisi bab 3\n- beli kopi\nx bayar listrik") }
+        shot("notes-empty") { isl.previewNotes("") }
+        isl.previewNotes(nil)
         shot("ring") { isl.ring(title: "Alarm 07.30", subtitle: "bangun", action: ("tunda 5 menit", {}), dismiss: {}) }
         isl.endRing()
 
@@ -77,7 +84,7 @@ enum Snapshot {
         win.contentView = web
         win.setFrameOrigin(NSPoint(x: -3000, y: -3000))
         win.orderFrontRegardless()
-        web.load(URLRequest(url: URL(string: "guardia://app/wallpaper/index.html?still=1&time=16:30")!))
+        web.load(URLRequest(url: URL(string: "guardia://app/wallpaper/index.html?still=1&time=\(Snapshot.time)&demo=1&weather=\(Snapshot.weather)")!))
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
             web.evaluateJavaScript("JSON.stringify(window.__guardia || null)") { res, err in
                 try? "\(res ?? "nil") \(err.map { "\($0)" } ?? "")".write(to: out.appendingPathComponent("wallpaper-state.txt"), atomically: true, encoding: .utf8)

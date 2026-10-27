@@ -14,7 +14,8 @@ from .core import (ROOM_W, ROOM_D as D, ROOM_H, WIN, TOKENS, box, cylinder, plan
 LAMP_HEAD = (1.36, 4.72, 1.3)
 LAMP_AXIS = (0.1, 0.55, -0.83)  # onto the desk and washing the wall behind it
 P = None  # the Props collection
-OVERLAYS = {}  # world-space quads for the live layers (clock face, calendar page, record sleeve)
+OVERLAYS = {}  # world-space quads for the live layers: clock, calendar, sleeve and the widgets
+MASKED = {}  # widget name → the objects whose visible pixels make its mask (see blender/masks.py)
 
 
 # ---------------------------------------------------------------- materials with patterns
@@ -201,16 +202,19 @@ def leaf_mesh(name, length, width, slits=False, heart=True, mat=None):
         pts_l.append((-w, t * length))
         pts_r.append((w, t * length))
     if slits:
-        def notch(pts, side):
+        # monstera: deep cuts in from the edge, slanting toward the tip like the veins; a cut
+        # leaves a gap at the edge and closes before the midrib
+        def cut(pts):
             out = []
             for i, (x, y) in enumerate(pts):
-                out.append((x, y))
-                t = i / n
-                if i in (7, 11, 15):
-                    out.append((x * 0.32, y + length * 0.015))
-                    out.append((x * 0.98, y + length * 0.045))
+                if i in (6, 9, 12, 15, 18):
+                    out.append((x, y - length * 0.012))
+                    out.append((x * 0.26, y + length * 0.05))
+                    out.append((x * 0.94, y + length * 0.022))
+                else:
+                    out.append((x, y))
             return out
-        pts_l, pts_r = notch(pts_l, -1), notch(pts_r, 1)
+        pts_l, pts_r = cut(pts_l), cut(pts_r)
     outline = pts_r + list(reversed(pts_l[1:-1]))
     bm = bmesh.new()
     vs = [bm.verts.new((x, y, 0.004 * abs(x) / max(width, 1e-6) * 4)) for x, y in outline]  # a gentle V along the midrib
@@ -260,6 +264,9 @@ def desk_items():
     B('monitor-back', 1.58, 2.0, 4.95, 5.12, 0.83, 1.16, beige, bev=0.02)
     B('monitor', 1.5, 2.08, 4.76, 4.96, 0.79, 1.21, beige, bev=0.012)
     plane('screen', [(1.555, 4.757, 0.86), (2.025, 4.757, 0.86), (2.025, 4.757, 1.165), (1.555, 4.757, 1.165)], tex_material('screen', 'screen.png', emit=1.0), P)
+    # Claude Code sessions with Remote Control are listed on it live
+    OVERLAYS['screen'] = [(1.555, 4.7565, 1.165), (2.025, 4.7565, 1.165), (2.025, 4.7565, 0.86), (1.555, 4.7565, 0.86)]
+    MASKED['screen'] = ['screen']
     B('monitor-note', 1.95, 2.06, 4.754, 4.757, 1.07, 1.18, material('note', '#E6C766'), bev=0)
     B('monitor-led', 2.0, 2.015, 4.754, 4.757, 0.815, 0.825, material('led', '#7FB069', emit=1.0), bev=0)
     # keyboard
@@ -408,6 +415,35 @@ def shelf():
     # top: two boxes and the pothos
     B('shoebox1', x1 - 0.5, x1 - 0.1, y0 + 0.03, y0 + 0.3, h, h + 0.13, material('shoebox', 'terracotta'), bev=0.004)
     B('shoebox2', x1 - 0.46, x1 - 0.14, y0 + 0.05, y0 + 0.28, h + 0.13, h + 0.22, material('shoebox2', 'cream'), bev=0.004)
+    signal(x0 + 0.3, y0 + 0.15, h)
+
+
+def signal(x, y, top):
+    """A toy traffic light on top of the bookshelf. How hard the Mac is working lights one lens
+    (green, amber, red) live, through OVERLAYS['signal']."""
+    body = material('metal-paint')
+    B('signal-base', x - 0.055, x + 0.055, y - 0.05, y + 0.05, top, top + 0.02, material('signal-base', 'dark-wood'), bev=0.005)
+    C('signal-pole', x, y, 0.011, top + 0.02, top + 0.1, material('signal-pole', 'dark-wood'), bev=0.002)
+    w, z0, z1, front = 0.06, top + 0.1, top + 0.37, y - 0.035
+    B('signal-body', x - w, x + w, front, y + 0.035, z0, z1, body, bev=0.01)
+    lenses = []
+    for i, (z, col) in enumerate([(z1 - 0.047, 'lens-red'), (z1 - 0.135, 'lens-amber'), (z1 - 0.223, 'lens-green')]):
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, segments=32, radius1=0.034, radius2=0.034, depth=0.008)
+        lens = mesh_obj(f'signal-lens{i}', bm, material(col, col), P, smooth=True)
+        lens.rotation_euler.x = math.radians(90)
+        lens.location = (x, front - 0.003, z)
+        lenses.append(lens.name)
+        # a visor over each lens
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=False, segments=24, radius1=0.04, radius2=0.04, depth=0.035)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.y < -0.012], context='VERTS')
+        visor = mesh_obj(f'signal-visor{i}', bm, body, P, smooth=True)
+        visor.modifiers.new('thick', 'SOLIDIFY').thickness = 0.004
+        visor.rotation_euler.x = math.radians(90)
+        visor.location = (x, front - 0.02, z)
+    OVERLAYS['signal'] = [(x - w, front - 0.008, z1), (x + w, front - 0.008, z1), (x + w, front - 0.008, z0), (x - w, front - 0.008, z0)]
+    MASKED['signal'] = lenses
 
 
 def monstera():
@@ -416,43 +452,69 @@ def monstera():
     C('monstera-pot', 0.4, 4.74, 0.16, 0.03, 0.38, pot, r_top=0.19)
     C('monstera-soil', 0.4, 4.74, 0.175, 0.34, 0.35, material('soil', '#3A2418'), bev=0)
     leafm = material('leaf')
+    dark = material('leaf-dark', '#4B5A30')
     r = rng(12)
-    base = Vector((0.4, 4.74, 0.38))
-    for i in range(8):
-        a = -1.1 + (i / 7) * 2.4 + r.uniform(-0.15, 0.15)
-        up = 0.45 + r.random() * 0.7
-        end = base + Vector((math.sin(a) * 0.28 + 0.1, -math.cos(a) * 0.16 - 0.06, up))
-        smooth_tube(f'stem{i}', [base, base + Vector((math.sin(a) * 0.08, -0.02, up * 0.6)), end], 0.009, leafm, P)
-        lf = leaf_mesh(f'monstera-leaf{i}', 0.36 + r.random() * 0.1, 0.18 + r.random() * 0.04, slits=True, mat=leafm)
-        direction = Vector((math.sin(a) * 0.75 + 0.15, -0.55, -0.25 - r.random() * 0.35)).normalized()
-        normal = Vector((0.1, -0.6, 0.8))
+    base = Vector((0.4, 4.74, 0.37))
+    for i in range(10):
+        a = -1.2 + (i / 9) * 2.5 + r.uniform(-0.12, 0.12)
+        up = 0.4 + r.random() * 0.75
+        reach = 0.22 + r.random() * 0.14
+        end = base + Vector((math.sin(a) * reach + 0.08, -math.cos(a) * reach * 0.6 - 0.05, up))
+        smooth_tube(f'stem{i}', [base, base + Vector((math.sin(a) * 0.06, -0.02, up * 0.55)), end], 0.011, leafm, P)
+        lf = leaf_mesh(f'monstera-leaf{i}', 0.4 + r.random() * 0.12, 0.2 + r.random() * 0.05, slits=True, mat=dark if i % 3 == 0 else leafm)
+        # leaves hang off the stem tip, turned out toward the room and tipped down
+        direction = Vector((math.sin(a) * 0.7 + 0.15, -0.55, -0.15 - r.random() * 0.4)).normalized()
+        normal = Vector((0.15, -0.65, 0.75))
         place(lf, end, normal, direction)
 
 
 def sill_plants():
+    """Three pots on the sill: an echeveria rosette, a snake plant, a pothos trailing over the edge."""
     z0 = WIN['z0']
     x = -0.06
+    soil = material('soil', '#3A2418')
     pots = [('terracotta', 2.78, 0.05, 0.075), ('ivory', 3.22, 0.055, 0.085), ('teal', 3.66, 0.05, 0.07)]
     for col, y, r_, h in pots:
         C(f'sillpot{y}', x, y, r_ * 0.82, z0, z0 + h, material('pot-' + col, col), r_top=r_)
-    leafm = material('leaf')
-    olive = material('succulent', 'olive')
+        C(f'sillsoil{y}', x, y, r_ * 0.93, z0 + h - 0.014, z0 + h - 0.008, soil, bev=0)
     r = rng(5)
-    for i in range(9):
-        a = i / 9 * math.pi * 2
-        lf = leaf_mesh(f'succ{i}', 0.065, 0.02, heart=False, mat=olive)
-        place(lf, (x, 2.78, z0 + 0.075), (math.cos(a), math.sin(a), 0.9), (math.cos(a) * 0.8, math.sin(a) * 0.8, 0.6))
-    for i in range(14):
-        a = r.random() * math.pi * 2
-        p = (x + math.cos(a) * 0.04, 3.22 + math.sin(a) * 0.05, z0 + 0.09 + r.random() * 0.12)
-        lf = leaf_mesh(f'basil{i}', 0.045, 0.02, heart=False, mat=leafm)
-        place(lf, p, (math.cos(a), math.sin(a), 0.5), (math.cos(a), math.sin(a), 0.6 + r.random() * 0.3))
-    pearl = material('pearl', 'olive')
-    for s in range(4):
-        for k in range(9):
-            bpy.ops.mesh.primitive_uv_sphere_add(radius=0.009, segments=10, ring_count=6,
-                                                 location=(0.0 + s * 0.012 + k * 0.004, 3.62 + s * 0.025, z0 + 0.06 - k * 0.045 - s * 0.01))
-            _put(bpy.context.active_object).data.materials.append(pearl)
+    # echeveria: three rings of fleshy leaves, the inner ones short and upright
+    top = Vector((x, 2.78, z0 + 0.072))
+    z = Vector((0, 0, 1))
+    rings = [(11, 0.07, 0.032, 18, 0.014, 'olive'), (9, 0.058, 0.028, 40, 0.009, 'olive'), (7, 0.044, 0.023, 62, 0.004, 'plant-green')]
+    for ring, (n, length, width, tilt, off, col) in enumerate(rings):
+        for i in range(n):
+            a = (i + ring * 0.5) / n * math.pi * 2
+            out = Vector((math.cos(a), math.sin(a), 0))
+            t = math.radians(tilt)
+            up = out * math.cos(t) + z * math.sin(t)
+            face = z * math.cos(t) - out * math.sin(t)  # the leaf's upper side, turned in toward the heart
+            lf = leaf_mesh(f'echeveria{ring}-{i}', length, width, heart=False, mat=material('succulent-' + col, col))
+            place(lf, top + out * off + z * 0.004 * ring, face, up)
+    # snake plant: banded blades standing almost straight up
+    blade = stripes_material('snake-leaf', 'plant-green', 'olive', 70, 'Z', width=0.58)
+    for i in range(6):
+        a = i / 6 * math.pi * 2 + r.uniform(-0.3, 0.3)
+        out = Vector((math.cos(a), math.sin(a), 0))
+        base = Vector((x, 3.22, z0 + 0.075)) + out * 0.018
+        lean = r.uniform(0.08, 0.2)
+        lf = leaf_mesh(f'snake{i}', 0.2 + r.random() * 0.1, 0.017, heart=False, mat=blade)
+        place(lf, base, out.cross(Vector((0, 0, 1))) * (1 if i % 2 else -1) + out * 0.3, Vector((0, 0, 1)) + out * lean)
+    # pothos: vines over the front of the sill and down the wall, heart leaves along them
+    leafm = material('leaf')
+    for k, dy in enumerate((-0.035, 0.0, 0.03)):
+        drop = 0.18 + k * 0.1
+        pts = [Vector((x + 0.02, 3.66 + dy * 0.5, z0 + 0.07)), Vector((0.02, 3.66 + dy, z0 + 0.06)),
+               Vector((0.075, 3.66 + dy * 1.4, z0 + 0.005)), Vector((0.085, 3.66 + dy * 1.8, z0 - 0.06 - drop * 0.3)),
+               Vector((0.082, 3.66 + dy * 2.2, z0 - drop * 0.75)), Vector((0.086, 3.66 + dy * 2.6, z0 - drop))]
+        smooth_tube(f'pothos-vine{k}', [tuple(p) for p in pts], 0.0022, leafm, P)
+        for j in range(1, len(pts)):
+            p = pts[j - 1].lerp(pts[j], 0.6)
+            along = (pts[j] - pts[j - 1]).normalized()
+            side = 1 if (j + k) % 2 else -1
+            up = (along.cross(Vector((1, 0, 0))) * side * 0.8 + Vector((0, 0, -0.45)) + Vector((0.3, 0, 0))).normalized()
+            lf = leaf_mesh(f'pothos{k}-{j}', 0.058 + r.random() * 0.014, 0.038, heart=True, mat=leafm)
+            place(lf, p, Vector((1, -0.35, 0.25)), up)
 
 
 def curtains():
@@ -608,9 +670,13 @@ def record_crate():
 def wall_decor():
     y = D
     dark = material('frame-dark', 'dark-wood')
-    # cork board in a dark frame
-    B('cork-frame', 1.2, 2.3, y - 0.025, y, 1.32, 1.94, dark, bev=0.004)
-    plane('cork', [(1.232, y - 0.026, 1.352), (2.268, y - 0.026, 1.352), (2.268, y - 0.026, 1.908), (1.232, y - 0.026, 1.908)], tex_material('cork-tex', 'cork.png'), P)
+    # cork board in a dark frame; the GitHub card on it is stamped live
+    k = CORK
+    B('cork-frame', k['x0'], k['x1'], y - 0.025, y, k['z0'], k['z1'], dark, bev=0.004)
+    i = k['inset']
+    plane('cork', [(k['x0'] + i, y - 0.026, k['z0'] + i), (k['x1'] - i, y - 0.026, k['z0'] + i),
+                   (k['x1'] - i, y - 0.026, k['z1'] - i), (k['x0'] + i, y - 0.026, k['z1'] - i)], tex_material('cork-tex', 'cork.png'), P)
+    OVERLAYS['github'] = cork_quad(*CORK['card'], y - 0.0265)
     # tear-off calendar on a nail
     B('calendar', 2.42, 2.73, y - 0.012, y, 1.36, 1.83, tex_material('calendar-card', 'calendar.png'), bev=0.002)
     OVERLAYS['calendar'] = [(2.42, y - 0.0125, 1.83), (2.73, y - 0.0125, 1.83), (2.73, y - 0.0125, 1.36), (2.42, y - 0.0125, 1.36)]
@@ -635,13 +701,10 @@ def wall_decor():
     for (tx, tz, a) in [(3.0, 2.09, 35), (3.66, 2.088, -30)]:
         t = B(f'tape{tx}', -0.05, 0.05, -0.0015, 0, -0.018, 0.018, tape, bev=0)
         t.location = (tx, y - 0.005, tz); t.rotation_euler.y = math.radians(a)
-    # the ghost of an older poster: paler paint where it hung, two tape scraps left
-    ghost = material('ghost-paint', '#9DB2C8', hatch=0.6)
-    g = plane('ghost', [(0.32, y - 0.001, 1.32), (0.84, y - 0.001, 1.32), (0.84, y - 0.001, 2.02), (0.32, y - 0.001, 2.02)], ghost, P)
-    collection('NoInk').objects.link(g)
-    for (tx, tz, a) in [(0.33, 2.01, 30), (0.83, 1.33, -25)]:
-        t = B(f'gtape{tx}', -0.045, 0.045, -0.0015, 0, -0.016, 0.016, tape, bev=0)
-        t.location = (tx, y - 0.002, tz); t.rotation_euler.y = math.radians(a)
+    # (the ghost of an old poster hung here until 2026-10-27: without ink it read as a pale box,
+    # its two tape scraps as things floating in the beam; the chalkboard took the spot)
+    chalkboard()
+    battery_panel()
     # outlet and switch
     ivory = material('plate', 'ivory')
     B('outlet', 2.86, 2.97, y - 0.008, y, 0.26, 0.37, ivory, bev=0.002)
@@ -661,6 +724,77 @@ def wall_decor():
         bo.scale = (0.8, 0.8, 1.1)
         bo.name = f'bulb{i}'
         bo.data.materials.append(material('stringbulb' + str(i % 4), bulbs[i % 4], emit=0.0))
+
+
+# the cork board, and where the GitHub card sits on its texture (blender/textures.js cork():
+# 1 px = 1 mm, card at x, y, w, h px turned by a radians; keep both in step)
+CORK = dict(x0=1.18, x1=2.34, z0=1.31, z1=1.97, inset=0.032, card=(366, 30, 420, 520, 0.02))
+
+
+def cork_quad(px, py, w, h, a, y):
+    """The card's corners (top-left, top-right, bottom-right, bottom-left) in world space."""
+    k, i = CORK, CORK['inset']
+    x0, x1, z0, z1 = k['x0'] + i, k['x1'] - i, k['z0'] + i, k['z1'] - i
+    W, H = round((x1 - x0) * 1000), round((z1 - z0) * 1000)
+    cx, cy = px + w / 2, py + h / 2
+    out = []
+    for dx, dy in ((-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)):
+        qx = cx + dx * math.cos(a) - dy * math.sin(a)
+        qy = cy + dx * math.sin(a) + dy * math.cos(a)
+        out.append((x0 + qx / W * (x1 - x0), y, z1 - qy / H * (z1 - z0)))
+    return out
+
+
+def chalkboard():
+    """The notes board left of the desk: dark slate in a pine frame, chalk dust, a ledge with
+    chalk and an eraser. The notes from the island are chalked on it live (OVERLAYS['chalk'])."""
+    y = D
+    x0, x1, z0, z1, fr = 0.08, 1.12, 1.46, 2.16, 0.04  # slate 0.96 x 0.62 m (textures.js slate())
+    pine = material('board-frame', 'pine')
+    for name, (a, b, c, d) in [('board-top', (x0, x1, z1 - fr, z1)), ('board-bottom', (x0, x1, z0, z0 + fr)),
+                               ('board-left', (x0, x0 + fr, z0 + fr, z1 - fr)), ('board-right', (x1 - fr, x1, z0 + fr, z1 - fr))]:
+        B(name, a, b, y - 0.032, y, c, d, pine, bev=0.005)
+    plane('slate', [(x0 + fr, y - 0.018, z0 + fr), (x1 - fr, y - 0.018, z0 + fr), (x1 - fr, y - 0.018, z1 - fr), (x0 + fr, y - 0.018, z1 - fr)],
+          material('slate', tex='slate.png', hatch=0), P)
+    OVERLAYS['chalk'] = [(x0 + fr, y - 0.0185, z1 - fr), (x1 - fr, y - 0.0185, z1 - fr), (x1 - fr, y - 0.0185, z0 + fr), (x0 + fr, y - 0.0185, z0 + fr)]
+    MASKED['chalk'] = ['slate']
+    B('board-ledge', x0 + 0.03, x1 - 0.03, y - 0.078, y - 0.032, z0 - 0.004, z0 + 0.014, pine, bev=0.004)
+    chalk = material('chalk')
+    for i, (cx, ln, a) in enumerate([(0.36, 0.075, 4), (0.47, 0.05, -9), (0.54, 0.032, 20)]):
+        d = Vector((math.cos(math.radians(a)), math.sin(math.radians(a)), 0)) * ln / 2
+        c = Vector((cx, y - 0.056, z0 + 0.0205))
+        tube(f'chalk{i}', [tuple(c - d), tuple(c + d)], 0.0065, chalk, P)
+    B('eraser-felt', 0.8, 0.94, y - 0.072, y - 0.04, z0 + 0.014, z0 + 0.034, material('eraser-felt', '#4A3A30'), bev=0.003)
+    B('eraser-back', 0.8, 0.94, y - 0.072, y - 0.04, z0 + 0.034, z0 + 0.058, material('eraser-wood', 'light-wood'), bev=0.005)
+
+
+def battery_panel():
+    """Battery dials on a board above the desk's right end: the Mac, the phone, the earbuds and
+    one more. Needles, numbers and names are printed live (OVERLAYS['gauges']); a cable runs
+    down to the outlet, as if the board were wired in."""
+    y = D
+    x0, x1, z0, z1 = 2.16, 2.94, 0.98, 1.26
+    B('gauge-board', x0, x1, y - 0.024, y, z0, z1, material('gauge-board', 'cherry'), bev=0.006)
+    i = 0.018
+    plane('gauge-faces', [(x0 + i, y - 0.025, z0 + i), (x1 - i, y - 0.025, z0 + i), (x1 - i, y - 0.025, z1 - i), (x0 + i, y - 0.025, z1 - i)],
+          tex_material('gauge-face', 'gauges.png'), P)
+    OVERLAYS['gauges'] = [(x0 + i, y - 0.0255, z1 - i), (x1 - i, y - 0.0255, z1 - i), (x1 - i, y - 0.0255, z0 + i), (x0 + i, y - 0.0255, z0 + i)]
+    MASKED['gauges'] = ['gauge-faces']
+    # brass bezels round the four dials (they sit where textures.js gauges() draws the faces)
+    brass = material('brass')
+    w = (x1 - x0 - 2 * i) / 4
+    for k in range(4):
+        cx = x0 + i + (k + 0.5) * w
+        cz = z0 + i + (z1 - z0 - 2 * i) * 0.6
+        bpy.ops.mesh.primitive_torus_add(major_radius=0.068, minor_radius=0.0045, major_segments=40, minor_segments=8,
+                                         location=(cx, y - 0.028, cz), rotation=(math.radians(90), 0, 0))
+        _put(bpy.context.active_object).data.materials.append(brass)
+    for sx in (x0 + 0.012, x1 - 0.012):
+        for sz in (z0 + 0.012, z1 - 0.012):
+            sc = C(f'gauge-screw{sx:.2f}{sz:.2f}', 0, 0, 0.005, -0.002, 0.002, brass, bev=0)
+            sc.rotation_euler.x = math.radians(90)
+            sc.location = (sx, y - 0.026, sz)
+    smooth_tube('gauge-cable', [(x1 - 0.05, y - 0.012, z0 + 0.01), (x1 - 0.04, y - 0.01, 0.7), (2.93, y - 0.01, 0.42), (2.92, y - 0.009, 0.37)], 0.004, material('cable'), P)
 
 
 def pendant():

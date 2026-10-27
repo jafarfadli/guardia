@@ -1,6 +1,6 @@
 # Handoff — Guardia desktop
 
-Read this first if you are picking up the work in a new session. Last updated: 2026-10-27. Revision rounds 2–7 have shipped (round 7: app icons and the grouped Dock). Waiting on the user's feedback.
+Read this first if you are picking up the work in a new session. Last updated: 2026-10-27. Revision rounds 2–10 have shipped (round 10: widgets in the room, the ink fix, new plants). Waiting on the user's feedback.
 
 ## What the user wants
 
@@ -15,9 +15,10 @@ Machine: MacBook Air M1, **no notch**, 8 GB RAM, macOS 26.3, normally Dark mode.
 | Piece | Where | Notes |
 |---|---|---|
 | Guardia.app (Swift) | `guardia-app/`, installed to `~/Applications/Guardia.app`, bundle id and LaunchAgent `id.guardia.app`, URL scheme `guardia://` | Hosts the wallpaper (WKWebView at desktop level), the paper **island**, and the **pet Maestro** |
-| Wallpaper | `blender/` renders `wallpaper/frames/` (42 WebP frames + `frames.json`, 15 MB); `wallpaper/src/` shows them | The web layer picks the frame for the sun's phase, multiplies live overlays on top (calendar with Javanese pasaran, clock hands, now-playing sleeve), bakes the WebGL print grade, and runs CSS dust clipped to the sun beam |
+| Wallpaper | `blender/` renders `wallpaper/frames/` (42 clear + 6 overcast WebP frames, `masks/`, `frames.json`); `wallpaper/src/` shows them | The web layer picks the frame for the sun's phase and the weather, lays live overlays on top (calendar with Javanese pasaran, clock hands, now-playing sleeve, and the widgets in `widgets.js`), bakes the WebGL print grade, runs CSS dust clipped to the sun beam and CSS rain clipped to the window |
 | Maestro | `pet/cat.js`, `pet/poses.js` → `guardia-app/Resources/pet/` | Chibi, one merged silhouette with a single outer ink contour. Each animation is one sheet; `Pet.swift` picks frames with `contentsRect` |
-| Island | `guardia-app/Sources/Island.swift`, `Launcher.swift`, `Projects.swift`, `Alarms.swift`, `FocusGuard.swift` | Folded: time, battery, and the song or timer between them. Click: search. Also rings alarms and shows focus-mode visits |
+| Island | `guardia-app/Sources/Island.swift`, `Launcher.swift`, `Projects.swift`, `Alarms.swift`, `FocusGuard.swift`, `Notes.swift` | Folded: the time with the song or timer beside it; the battery only when ≤20% and unplugged. Click: search (plus the Catatan page). Also rings alarms and shows focus-mode visits |
+| Room widgets | `guardia-app/Sources/Widgets.swift`, `Batteries.swift`, `Weather.swift` → `wallpaper/src/widgets.js` | Notes on the chalkboard, GitHub streak card, Claude Remote Control sessions on the monitor, battery dials, toy traffic light for the Mac's load, real weather in the window |
 | JankyBorders | `dotfiles/borders/bordersrc` | Ink outlines |
 | Themes | `dotfiles/vscode` (Kertas / Kertas Malam), `dotfiles/ghostty`, `dotfiles/spicetify`, `dotfiles/chrome` | Chrome needs a manual "Load unpacked" |
 | Stills | `dotfiles/wallpaper/kamar-sore.jpg` (system wallpaper, lock screen), Chrome NTP image | Taken from the graded 16:30 frame |
@@ -262,6 +263,54 @@ The user asked that Maestro still leap onto the tab being closed, but shut it st
 - The `leap` pose is back in `pet/poses.js` (6 frames) and in the sprites.
 - Tested: in focus mode, opening youtube.com in Chrome put Maestro on the tab within about half a second. The tab closed and he fell back to the floor.
 
+## Revision round 10 (done, 2026-10-27): widgets in the room, the ink, the plants
+
+The user chose widgets drawn **as things in the room** (not WidgetKit, which needs full Xcode and which macOS 26 fades on the desktop). Their picks: notes written in the island and chalked on a **chalkboard**; a **dial panel** for batteries plus a **toy traffic light** for the Mac's load; GitHub streak from **GitHub only**; weather at **the Mac's own location**; VS Code → **Folder baru**; Claude **Remote Control** sessions as name + red/green.
+
+### Why the ink looked "nanggung" (root cause, verified with test renders)
+- Freestyle treats **every mesh as an occluder, including the volumetric air box** (`RoomAir`). The camera (y = −0.6) stood 5 cm outside that box, so its front face hid nearly all ink; only a strip on the right (bookshelf, poster, guitar) kept lines. The rug and the floor/wall corners also sat just outside the box.
+- Fix: the air is now a **Volume object** whose grid comes from a geometry-nodes *Volume Cube* (`lights.air_setup`). Freestyle ignores volumes. A Volume object filled by *Mesh to Volume* from a hidden box did **not** work: the hidden box is not evaluated at render time, so the air came out empty and the beam vanished.
+- Freestyle also let lines through faces many metres across: the houses outside showed through the floor and the window wall. The floor, back wall and ceiling get a SIMPLE subdivision (level 2). The window wall is now built as a quad mesh with an opening (`room.wall_with_window`), because subdividing the old boolean-cut n-gon tore lines across the window.
+- The floor sits 2 mm low, so objects standing on it keep inked bottom edges; the walls run down past it (a gap at their foot let the sky through, visible in the masks).
+- Ink is rendered as **its own pass** (`freestyle_settings.as_render_pass`) and laid over the finished image by the compositor (`build.ink_over`, Blender 5 `scene.compositing_node_group`), so the beam's haze never veils it. Two linesets: `outline` (silhouette, border) weight 1.0 and `inner` (crease, material boundary) weight 0.62. Distance thinning is gentle inside the room (1.1 → 0.8); only the street outside fades.
+- `crease_angle` is 142°: a 2-segment bevel turns a 90° edge in joints of 157.5°/135°/157.5°, so only the middle joint is inked (one line per bevelled edge). At 134° no bevelled edge was inked at all.
+
+### Assets
+- The "pale box behind the monstera" was the **ghost of an old poster** (DESIGN.md asks for those) and the two "floating boxes" were its tape scraps; without ink it read as a box. Removed; the **chalkboard** took the spot (`props.chalkboard`, slate texture `textures.js slate()`).
+- Sill plants rebuilt (`props.sill_plants`): echeveria rosette (three rings), snake plant (banded blades), pothos vines trailing over the sill with heart leaves. The string-of-pearls spheres and stem-less basil leaves are gone.
+- Monstera rebuilt with deep cuts (`leaf_mesh(slits=True)`), ten leaves, two greens.
+- Cork board enlarged (1.16 × 0.66 m); the "besok" note became the blank **GitHub card** (`CORK['card']` in props.py must match `CARD` in textures.js).
+- **Battery panel** above the desk's right end (`props.battery_panel`, `textures.js gauges()`), wired to the outlet with a cable; brass bezels.
+- **Toy traffic light** on top of the bookshelf (`props.signal`), dark lenses; the lit one is printed live.
+
+### Masks and overcast frames
+- `blender/masks.py` renders, once for every frame (the camera never moves): each widget surface (`props.MASKED`) where nothing stands in front of it (all other objects are holdouts), the window's sky (`sky`) and the sky plus the street (`outside`). Output: `wallpaper/frames/masks/*.png` (white, alpha = mask, cropped) and `frames.json` `masks` + `overlays`. `render.py` keeps `masks` when it rewrites frames.json.
+- `render.py` also renders **6 overcast frames** (`o0550` … `o1780`, `lights.overcast`): no sun, cool light from the east window, grey sky, a quarter of the dust. The page uses them on cloudy/rain/storm/fog days between phases 0.45 and 1.8.
+- Full render (48 frames) ≈ 1 hour at scale 1.0 (≈ 75 s a frame).
+
+### The page (`wallpaper/src/widgets.js`, `main.js`)
+- Each widget draws flat in its own space, is **warped in true perspective** onto its quad (a 6×6 grid of affine triangles from a square-to-quad homography), and is clipped by its mask before it is laid into the scene: ink with `multiply` (GitHub card, dials), self-lit things with `source-over` (monitor, lit lens plus a `screen` glow), chalk with `source-over` in a colour scaled by how lit the slate came out (sampled from the render), so it dims at night. (Colour-dodge per channel turned the chalk pink at night.)
+- Weather: clouds (partly), stars (clear night), fog haze and drops on the glass in the window masks; falling rain is a small canvas over the window (`widgets.js Rain`, ~24 fps while it rains, still on battery; WebKit stops it while the desktop is covered); storms flash the room now and then (CSS `#flash`).
+  - A CSS layer of rain tiles under a CSS mask never showed in WebKit's desktop window, with a `guardia://` mask URL or a data: URL alike (Chrome showed it). Don't go back to it.
+  - Rain and drops are dark blue-grey by day: white streaks vanished against the pale overcast sky.
+- `window.guardia.setWidgets({notes, github, sessions, batteries, load, weather})`, `setLocation(lat, lon)`. Widget drawings are memoised. `demo=1` and `weather=…` URL parameters for previews; `Guardia --snapshot` uses them (`GUARDIA_SNAPSHOT_TIME`, `GUARDIA_SNAPSHOT_WEATHER`).
+
+### The app
+- `Widgets` gathers the sources and sends what changed (deduplicated by JSON) after 0.3 s; a reloaded page gets the whole set.
+- **Gotcha:** WKWebView's navigation `didFinish` can arrive before the page's module script has run, so anything sent then (`window.guardia && …`) was silently dropped; the widgets never arrived, and the now-playing sleeve could miss a song at start. The page now posts `ready` through `window.webkit.messageHandlers.guardia` once `window.guardia` exists, and `WallpaperController.sendState` answers with the battery state, the song, the widgets and the location (didFinish still sends too). `WeakMessages` keeps the content controller from retaining the wallpaper.
+- A failed render leaves `error` and `keys` (the widgets the page holds) in `window.__guardia`, so `guardia://status` shows them; `rain` says whether rain is falling.
+
+### The striped wallpaper (round 6's "kadang bergaris", root cause)
+- The film grain's `hash()` in `grade.js` multiplied its input by ~450 before `fract()`, and the grain's time offset grew with the page's age (`performance.now()`). After about ten minutes the inputs were so large that float32 ran out of precision: one row of grain took a single value (emulated in numpy), so the grain became regular vertical stripes, 6 px apart at 2×. A freshly loaded page (every snapshot and preview) looked clean, which is why it was only "sometimes".
+- Fix: Dave Hoskins' `hash12` (it scales the input down first), the grain time wrapped (`mod 97` in the shader, `% 600` s in JS). Checked on the live window (`screencapture -l <wallpaper window id>`): the stripes are gone. Round 6's 2-px grain cells stay.
+- `ClaudeSessions`: polls `~/.claude/sessions/<pid>.json` every 3 s; a session counts when it has `bridgeSessionId` (Remote Control on) and its pid is alive; `status == "busy"` → green. **This is Claude Code's internal bookkeeping**, not a documented format (seen in v2.1.310).
+- `GitHubStreak`: `gh api graphql` contribution calendar every 30 min (and after wake). Streak counts back from today; today with no contribution yet does not break it. Last 15 weeks for the stamps. No `gh` → the card says "gh belum login".
+- `SystemLoad`: CPU (host_statistics, smoothed over ~25 s), `kern.memorystatus_vm_pressure_level`, thermal state → green / amber / red; a change must hold 10 s.
+- `Batteries`: Mac (IOPowerSources), HID accessories (IOKit `AppleDeviceManagementHIDEventService` BatteryPercent), AirPods (system_profiler every 3 min), iPhone/iPad through the private **MobileDevice** framework (dlopen; `AMDeviceNotificationSubscribeWithOptions` with network devices, read-only, never pairs). The phone shows over Wi-Fi only after "Show this iPhone when on Wi-Fi" in Finder. Four fixed dials: MAC, IPHONE, AIRPODS, then iPad or an accessory.
+- `Weather`: CoreLocation (macOS reports `.authorizedAlways` for when-in-use), last place saved in UserDefaults, Jakarta otherwise; Open-Meteo every 20 min with the position rounded to 0.1°. `guardia://weather/<kind>` overrides until the next report.
+- Island: the folded status lost the battery (shown only when ≤20% and unplugged); a **Catatan** page (NSTextView on ruled paper, Esc closes, saved to `~/.guardia/notes.txt`); VS Code list starts with **Folder baru** (creates `~/Koding/<name>`, opens VS Code; ⌘↵ Claude Code).
+- Info.plist gained location and Bluetooth usage strings.
+
 ## Tools and gotchas
 
 - **swiftc is broken** by a stale CLT `module.modulemap`. `guardia-app/build.sh` works around it with a VFS overlay. Reinstall the app with: `launchctl bootout gui/$UID/id.guardia.app`, then copy `build/app/Guardia.app` to `~/Applications`, then `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/id.guardia.app.plist`. Copying while the agent runs fails, because launchd relaunches Guardia mid-copy.
@@ -280,7 +329,7 @@ The user asked that Maestro still leap onto the tab being closed, but shut it st
 
 ## Next steps
 
-1. Wait for the user's feedback on rounds 3 and 4. The likely follow-ups:
+1. Wait for the user's feedback on round 10. Things to watch: the iPhone dial (needs Finder's Wi-Fi option), the location prompt, and whether the Claude session file format changes. Earlier likely follow-ups:
    - the island's behaviour behind maximised windows;
    - more sites for focus mode (`FocusGuard.sites`);
    - a global hotkey, if they change their mind (Carbon `RegisterEventHotKey` needs no permission).

@@ -8,14 +8,19 @@ final class IslandPanel: NSPanel {
 }
 
 // The "dynamic island" for a notch-less Mac: a paper tab hanging from the top centre, inked
-// by hand. Folded, it shows the time and the battery with whatever is going on between them
-// (a song, a timer, a note). Click it to search; it also rings alarms.
-final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
-    enum Content: Equatable { case status, music, timer, toast, search, ring }
+// by hand. Folded, it shows the time with whatever is going on beside it (a song, a timer, a
+// note); the battery only when it runs low (the dials in the room show it otherwise). Click it
+// to search; it also rings alarms, and opens a page for the notes chalked on the board.
+final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate, NSTextViewDelegate {
+    enum Content: Equatable { case status, music, timer, toast, search, ring, notes }
 
     let panel: IslandPanel
     let view: IslandView
     let field = NSTextField()
+    let noteScroll = NSScrollView()
+    let noteView = NSTextView()
+    var notes: Notes?
+    private(set) var editingNotes = false
     private var hover = false
     private var toastUntil: Date?
     private var collapseWork: DispatchWorkItem?
@@ -60,7 +65,33 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         field.cell?.wraps = false
         field.isHidden = true
         view.addSubview(field)
+        // the notes page: plain text on the paper, a line per point
+        noteScroll.drawsBackground = false
+        noteScroll.hasVerticalScroller = true
+        noteScroll.scrollerStyle = .overlay
+        noteScroll.borderType = .noBorder
+        noteScroll.isHidden = true
+        noteView.drawsBackground = false
+        noteView.isRichText = false
+        noteView.allowsUndo = true
+        noteView.isAutomaticQuoteSubstitutionEnabled = false
+        noteView.isAutomaticDashSubstitutionEnabled = false
+        noteView.isAutomaticTextReplacementEnabled = false
+        noteView.isContinuousSpellCheckingEnabled = false
+        noteView.font = Ink.font(15, weight: .semibold)
+        noteView.textContainerInset = NSSize(width: 0, height: 2)
+        noteView.textContainer?.lineFragmentPadding = 0
+        noteView.isVerticallyResizable = true
+        noteView.autoresizingMask = [.width]
+        let para = NSMutableParagraphStyle()
+        para.minimumLineHeight = IslandController.noteLine; para.maximumLineHeight = IslandController.noteLine
+        noteView.defaultParagraphStyle = para
+        noteView.typingAttributes[.paragraphStyle] = para
+        noteView.delegate = self
+        noteScroll.documentView = noteView
+        view.addSubview(noteScroll)
     }
+    static let noteLine: CGFloat = 23
 
     private(set) var running = false
     private var observing = false
@@ -83,7 +114,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private let frontLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
     private let backLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
     private func updateLevel() {
-        let wantsFront = hover || view.peek || toastUntil != nil || searching || ringing != nil
+        let wantsFront = hover || view.peek || toastUntil != nil || searching || ringing != nil || editingNotes
         var covered = false
         if !wantsFront, let screen = NSScreen.main,
            let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
@@ -104,6 +135,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         guard running else { return }
         running = false
         if searching { closeSearch() }
+        if editingNotes { closeNotes() }
         tick?.invalidate(); tick = nil
         panel.orderOut(nil)
     }
@@ -124,6 +156,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     }
 
     var content: Content {
+        if editingNotes { return .notes }
         if searching { return .search }
         if ringing != nil { return .ring }
         if view.toast != nil, toastUntil != nil, view.autoExpand { return .toast }
@@ -161,6 +194,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     // ------------------------------------------------------------------ ringing
     func ring(title: String, subtitle: String, action: (label: String, run: () -> Void)?, dismiss: @escaping () -> Void) {
         if searching { closeSearch() }
+        if editingNotes { closeNotes() }
         ringing = (title, subtitle, action, dismiss)
         refresh()
     }
@@ -204,7 +238,70 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         refresh()
     }
 
-    func windowDidResignKey(_ notification: Notification) { if searching { closeSearch() } }
+    func windowDidResignKey(_ notification: Notification) {
+        if searching { closeSearch() }
+        if editingNotes { closeNotes() }
+    }
+
+    // ------------------------------------------------------------------ notes
+    func openNotes() {
+        guard !editingNotes, let notes else { return }
+        if searching { closeSearch() }
+        editingNotes = true
+        hover = false
+        noteView.string = notes.text
+        noteView.textColor = view.scheme.ink
+        noteView.insertionPointColor = view.scheme.accent
+        layout(animated: true)
+        noteScroll.isHidden = false
+        panel.acceptsKeys = true
+        panel.level = frontLevel
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(noteView)
+        noteView.moveToEndOfDocument(nil)
+        view.needsDisplay = true
+    }
+
+    func closeNotes() {
+        guard editingNotes else { return }
+        editingNotes = false
+        notes?.set(noteView.string)
+        notes?.flush()
+        noteScroll.isHidden = true
+        panel.acceptsKeys = false
+        panel.orderOut(nil)
+        panel.orderFrontRegardless()
+        refresh()
+    }
+
+    /// For `Guardia --snapshot`: the notes page with `text`, without taking the keyboard.
+    func previewNotes(_ text: String?) {
+        editingNotes = text != nil
+        noteView.string = text ?? ""
+        noteView.textColor = view.scheme.ink
+        noteScroll.isHidden = text == nil
+    }
+
+    /// The text view keeps the scroll view's width (it starts at zero and would wrap every letter).
+    func placeNotes(_ frame: CGRect) {
+        guard noteScroll.frame != frame || noteView.frame.width != noteScroll.contentSize.width else { return }
+        noteScroll.frame = frame
+        let size = noteScroll.contentSize
+        noteView.minSize = NSSize(width: size.width, height: size.height)
+        noteView.maxSize = NSSize(width: size.width, height: .greatestFiniteMagnitude)
+        noteView.textContainer?.containerSize = NSSize(width: size.width, height: .greatestFiniteMagnitude)
+        noteView.textContainer?.widthTracksTextView = true
+        noteView.frame = NSRect(x: 0, y: 0, width: size.width, height: max(size.height, noteView.frame.height))
+        noteView.sizeToFit()
+    }
+
+    func textDidChange(_ notification: Notification) { notes?.set(noteView.string) }
+
+    func textView(_ textView: NSTextView, doCommandBy sel: Selector) -> Bool {
+        guard textView === noteView else { return false }
+        if sel == #selector(NSResponder.cancelOperation(_:)) { closeNotes(); return true }
+        return false
+    }
 
     /// For `Guardia --snapshot`: the search as it looks with `q` typed, without taking the keyboard.
     func previewSearch(_ q: String, list: Launcher.List = .root) {
@@ -240,7 +337,8 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         case #selector(NSResponder.moveDown(_:)), #selector(NSResponder.insertTab(_:)): move(1); return true
         case #selector(NSResponder.insertNewline(_:)): runSelected(alt: false); return true
         case #selector(NSResponder.cancelOperation(_:)):
-            if launcher?.list != .root { launcher?.enter(.root); field.stringValue = ""; selected = 0; updateResults() } else { closeSearch() }
+            // back one step: a new folder's name → the VS Code list → the top
+            if let l = launcher, l.list != .root { l.enter(l.list == .newFolder ? .code : .root); field.stringValue = ""; selected = 0; updateResults() } else { closeSearch() }
             return true
         default: return false
         }
@@ -296,6 +394,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         case .music: return CGSize(width: 400, height: 116)
         case .timer: return CGSize(width: 300, height: 92)
         case .status: return CGSize(width: view.statusWidth(), height: 30)
+        case .notes: return CGSize(width: 560, height: 340)
         }
     }
 
@@ -387,10 +486,13 @@ final class IslandView: NSView {
         }
     }
 
+    // the battery joins the time only when it runs low; the dials in the room show it otherwise
+    private var lowBattery: Bool { controller.map { $0.power.percent <= 20 && !$0.power.onAC } ?? false }
+
     func statusWidth() -> CGFloat {
         let time = width("00.00", timeFont)
-        let pct = width("100%", smallFont)
-        return pad * 2 + 16 + time + 14 + middleWidth() + 14 + 22 + pct + 16
+        let battery = lowBattery ? 14 + 22 + width("100%", smallFont) : 0
+        return pad * 2 + 16 + time + 14 + middleWidth() + battery + 16
     }
 
     private func drawStatus(_ ctx: CGContext, _ sc: Scheme) {
@@ -398,9 +500,9 @@ final class IslandView: NSView {
         let y: CGFloat = 6
         let pct = "\(c.power.percent)%"
         let pw = width(pct, smallFont)
-        let bx = bounds.width - pad - 16 - pw - 22
+        let bx = lowBattery ? bounds.width - pad - 16 - pw - 22 : bounds.width - pad - 16
         text(IslandView.hhmm.string(from: Date()), timeFont, sc.ink, at: CGPoint(x: pad + 16, y: y - 0.5))
-        // whatever is going on sits centred between the time and the battery
+        // whatever is going on sits centred between the time and the end (or a low battery)
         let left = pad + 16 + width("00.00", timeFont)
         let x = left + (bx - left - middleWidth()) / 2
         switch middle {
@@ -425,8 +527,10 @@ final class IslandView: NSView {
             // awake and watching while focus mode is on
             catDoodle(ctx, center: CGPoint(x: x + 9, y: 15), size: 6.5, color: sc.ink, asleep: !c.focusOn)
         }
-        battery(ctx, CGPoint(x: bx + 9, y: 15), sc, state: c.power)
-        text(pct, smallFont, c.power.percent <= 20 && !c.power.onAC ? Theme.mutedRed : sc.ink, at: CGPoint(x: bx + 22, y: y))
+        if lowBattery {
+            battery(ctx, CGPoint(x: bx + 9, y: 15), sc, state: c.power)
+            text(pct, smallFont, Theme.mutedRed, at: CGPoint(x: bx + 22, y: y))
+        }
     }
 
     // ------------------------------------------------------------------ drawing
@@ -494,7 +598,42 @@ final class IslandView: NSView {
         case .toast: if let t = toast { drawToast(ctx, inner, sc, icon: t.0, text: t.1) }
         case .search: drawSearch(ctx, inner, sc)
         case .ring: drawRing(ctx, inner, sc)
+        case .notes: drawNotes(ctx, inner, sc)
         }
+    }
+
+    // ------------------------------------------------------------------ notes
+    private func drawNotes(_ ctx: CGContext, _ r: CGRect, _ sc: Scheme) {
+        guard let c = controller else { return }
+        chalkboardIcon(ctx, CGPoint(x: r.minX + 10, y: 27), sc)
+        text("Catatan", Ink.font(15, weight: .bold), sc.accent, at: CGPoint(x: r.minX + 26, y: 16))
+        let tag = "tertulis di papan tulis kamar"
+        text(tag, Ink.font(11.5, weight: .medium), sc.inkSoft, at: CGPoint(x: r.maxX - width(tag, Ink.font(11.5, weight: .medium)), y: 19))
+        Ink.stroke([CGPoint(x: r.minX, y: 48), CGPoint(x: r.maxX, y: 48)], width: 1.1, color: sc.inkSoft, seed: 92, taper: 0.2, in: ctx)
+        // ruled like a notebook page, under the text's own lines
+        let top: CGFloat = 58, line = IslandController.noteLine
+        let frame = CGRect(x: r.minX, y: top, width: r.width, height: bounds.height - pad - 34 - top)
+        c.placeNotes(frame)
+        let scrolled = c.noteScroll.contentView.bounds.origin.y
+        var yy = top + line + 2 - scrolled.truncatingRemainder(dividingBy: line)
+        while yy < frame.maxY {
+            Ink.stroke([CGPoint(x: r.minX, y: yy), CGPoint(x: r.maxX, y: yy)], width: 0.6, color: Theme.teal.withAlphaComponent(0.28), seed: Int(yy), taper: 0, in: ctx)
+            yy += line
+        }
+        if c.noteView.string.isEmpty {
+            text("- tulis satu poin per baris", Ink.font(15, weight: .medium), sc.inkSoft.withAlphaComponent(0.7), at: CGPoint(x: r.minX, y: top + 2))
+        }
+        text("baris baru = poin baru  ·  “x ” = selesai  ·  “# ” = judul  ·  esc selesai", Ink.font(11, weight: .medium), sc.inkSoft,
+             at: CGPoint(x: r.minX, y: bounds.height - pad - 24))
+    }
+
+    private func chalkboardIcon(_ ctx: CGContext, _ c: CGPoint, _ sc: Scheme) {
+        let b = CGRect(x: c.x - 10, y: c.y - 8, width: 20, height: 15)
+        let pts = [CGPoint(x: b.minX, y: b.minY), CGPoint(x: b.maxX, y: b.minY), CGPoint(x: b.maxX, y: b.maxY), CGPoint(x: b.minX, y: b.maxY)]
+        Ink.fill(pts, NSColor(srgbRed: 0x34 / 255, green: 0x46 / 255, blue: 0x3D / 255, alpha: 1), in: ctx)
+        Ink.stroke(pts + [pts[0]], width: 1.5, color: Theme.mustard, seed: 201, taper: 0, in: ctx)
+        Ink.stroke([CGPoint(x: b.minX + 4, y: b.minY + 5), CGPoint(x: b.maxX - 5, y: b.minY + 5)], width: 1.3, color: Theme.cream, seed: 202, taper: 0.2, in: ctx)
+        Ink.stroke([CGPoint(x: b.minX + 4, y: b.minY + 9.5), CGPoint(x: b.maxX - 8, y: b.minY + 9.5)], width: 1.3, color: Theme.cream, seed: 203, taper: 0.2, in: ctx)
     }
 
     private func text(_ s: String, _ font: NSFont, _ color: NSColor, at p: CGPoint, maxWidth: CGFloat = 1000) {
@@ -684,7 +823,7 @@ final class IslandView: NSView {
         Ink.stroke([CGPoint(x: r.minX, y: 48), CGPoint(x: r.maxX, y: 48)], width: 1.1, color: sc.inkSoft, seed: 91, taper: 0.2, in: ctx)
 
         if c.results.isEmpty {
-            let empty = l.list == .alarm ? "ketik jamnya, misal 6.30" : l.list == .timer || l.list == .focus ? "ketik jumlah menitnya" : "tidak ada yang cocok"
+            let empty = l.list == .alarm ? "ketik jamnya, misal 6.30" : l.list == .timer || l.list == .focus ? "ketik jumlah menitnya" : l.list == .newFolder ? "ketik nama foldernya" : "tidak ada yang cocok"
             text(empty, Ink.font(13, weight: .medium), sc.inkSoft, at: CGPoint(x: r.minX + 40, y: 64))
         }
         let shown = c.results.dropFirst(c.scroll).prefix(IslandController.visibleRows)
@@ -763,6 +902,7 @@ final class IslandView: NSView {
         case .cat: catDoodle(ctx, center: CGPoint(x: c.x, y: c.y + 1.5), size: 7.5, color: sc.ink, asleep: true)
         case .search: magnifier(ctx, c, sc)
         case .star: star(ctx, c, sc)
+        case .notes: chalkboardIcon(ctx, c, sc)
         case .stop:
             let b = CGRect(x: c.x - 6, y: c.y - 6, width: 12, height: 12)
             let pts = [CGPoint(x: b.minX, y: b.minY), CGPoint(x: b.maxX, y: b.minY), CGPoint(x: b.maxX, y: b.maxY), CGPoint(x: b.minX, y: b.maxY)]
