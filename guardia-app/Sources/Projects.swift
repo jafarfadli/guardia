@@ -75,20 +75,24 @@ enum Projects {
         set cmd to "\(command)"
         set wasRunning to application "Ghostty" is running
         tell application "Ghostty"
-            if wasRunning then
-                set cfg to new surface configuration
-                set initial working directory of cfg to dir
-                set initial input of cfg to cmd & linefeed
-                new window with configuration cfg
-            else
+            if not wasRunning then
                 activate
                 repeat 40 times
                     if (count of windows) > 0 then exit repeat
                     delay 0.1
                 end repeat
+            end if
+            if not wasRunning and (count of windows) > 0 then
+                -- a fresh launch opened its own window: use it rather than adding a second
                 set t to focused terminal of selected tab of front window
                 input text ("cd " & quoted form of dir & " && clear && " & cmd) to t
                 send key "enter" to t
+            else
+                -- already running, or launched without a window of its own
+                set cfg to new surface configuration
+                set initial working directory of cfg to dir
+                set initial input of cfg to cmd & linefeed
+                new window with configuration cfg
             end if
             activate
         end tell

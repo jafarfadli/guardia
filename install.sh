@@ -40,6 +40,11 @@ pkill -x Guardia 2>/dev/null || true
 sleep 1
 rm -rf $HOME/Applications/Guardia.app
 cp -R "$ROOT/build/app/Guardia.app" $HOME/Applications/
+# macOS 26 frames a bundle icon it considers old-style in a grey square; a custom icon shows as drawn
+mkdir -p $STATE/icons
+sips -s format png "$ROOT/guardia-app/Resources/AppIcon.icns" --out $STATE/icons/guardia.png >/dev/null
+print -r -- "{\"repo\":\"$ROOT\",\"apps\":[{\"id\":\"guardia\",\"name\":\"Guardia\",\"app\":\"$HOME/Applications/Guardia.app\",\"png\":\"$STATE/icons/guardia.png\"}]}" > $STATE/icons/self.json
+$HOME/Applications/Guardia.app/Contents/MacOS/Guardia --set-icons $STATE/icons/self.json >/dev/null || true
 
 # ------------------------------------------------------------------ 3. dotfiles
 # symlinks into this folder; whatever was there before moves to ~/.guardia/backup

@@ -225,7 +225,9 @@ The user wanted their everyday apps' icons in the room's style. They chose style
   - The order is system apps (kept in place), sosial, kerja, hiburan, then other apps, with small spacers between.
   - Telegram, Spotify and Roblox were added.
   - The original `persistent-apps` is backed up once to `~/.guardia/backup/dock-persistent-apps.plist`.
-  - Already applied on the user's Mac: the Dock was grouped; the icons were not yet (waiting for the user to run the command).
+  - Applied on the user's Mac (2026-10-27): the Dock is grouped and all 29 icons are on. The first run (before App Management was allowed for Ghostty) only got 7. `guardia://icons/apply` opens the installer in Ghostty.
+- `Projects.terminal`: Ghostty launched by AppleScript may open with no window, so the script now creates one with `new window with configuration` in that case. That was the first failed run.
+- Guardia's own bundle icon was put in a grey frame by macOS 26 (old-style .icns), so install.sh also sets it as a custom icon (`~/.guardia/icons/self.json`).
 
 ## Tools and gotchas
 
