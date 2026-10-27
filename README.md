@@ -37,6 +37,7 @@ Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tok
 - Saat ada jendela yang dimaksimalkan atau aplikasi layar penuh, island yang sedang diam turun ke belakang supaya tidak menutupi judul jendela. Island maju lagi kalau ada lagu baru, notifikasi, alarm, atau timer selesai, atau saat kamu memanggilnya (⌃Space, tepi atas).
 
 **Maestro**
+- Di aplikasi layar penuh Maestro disembunyikan, kecuali di Chrome: di sana dia tetap menemani (dan menjaga tab saat mode fokus) sambil berjalan di dasar layar, karena Dock sedang tersembunyi.
 - Klik untuk mengelus (dia mendengkur). Seret untuk mengangkatnya, lalu lepas dan dia jatuh ke lantai.
 - Saat kamu mengetik, dia menepuk-nepuk. Kalau Mac tidak disentuh 2 menit, dia tidur, lalu bangun sambil meregang.
 - Menu kucing → *Panggil Maestro* membuatnya berjalan ke arah kursor.

@@ -338,6 +338,11 @@ The user found the room too full and the widgets too small to read. Measured on 
 - `Photos.swift`: five slots, `~/.guardia/photos/frameN-<time>.jpg` plus `photos.json` (the original file names). `Photos.print` turns the picture upright (ImageIO thumbnail with transform), at most 640 px, 15% less colour and 10% toward cream, JPEG 0.84 (≈ 90 KB). The page gets `photos` as data: URLs (`null` = the drawing).
 - Island: **Rak foto** in the menu, a list of the five frames (↵ opens an NSOpenPanel, ⌘↵ restores the drawing). Dropping an image file on the island puts it in the first empty frame, or in the frame under the pointer while that list is open (`IslandView.performDragOperation`).
 
+### Maestro over full-screen Chrome; the board without its line (same day)
+- The user saw Maestro over full-screen Chrome standing in mid-air: `visibleFrame` keeps the Dock's room even in a full-screen Space, where the Dock is hidden. And he was there at all because `fullScreenInFront` wanted a window *exactly* the screen's size, which Chrome's full-screen window is not (VS Code's is).
+- Now `fullScreenApp(on:)` returns the app whose window *covers* the screen. Over Chrome he stays (he guards it in focus mode; the user asked for him to land at the bottom, not to vanish) and `noDock` puts his floor on the screen's bottom edge; he falls to it. Over any other full-screen app he is still put away (round 6). `guardia://status` shows `noDock`.
+- The chalk line between the notes and GitHub's squares is gone (the user's call).
+
 ### Reaching the island when it is covered (same day)
 - The quiet island steps behind a window covering the top centre (a maximised or full-screen app), so it never hides a centred window title. The user found it hard to reach. Two ways in now:
   - **⌃Space** (`Hotkey.swift`, a Carbon `RegisterEventHotKey`: no Accessibility or Input Monitoring) toggles the search from anywhere, full-screen apps included. ⌃Space was free here: Spotlight is ⌘Space and the input-source shortcut on ⌃Space is off. `guardia://status` reports `hotkey: true` when it registered.

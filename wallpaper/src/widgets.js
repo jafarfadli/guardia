@@ -158,7 +158,7 @@ function wrap(g, text, maxW) {
 }
 
 // The board is 1610 x 810 mm: the notes fill the left two thirds, GitHub's last thirteen weeks
-// (when there is GitHub data) the last third, past a chalk line.
+// (when there is GitHub data) the last third.
 export const chalkBoard = memo((notes, light = 1, gh) => {
   const W = 1610, H = 810;
   const [c, g] = flat(W, H);
@@ -220,7 +220,7 @@ export const chalkBoard = memo((notes, light = 1, gh) => {
       y += lh;
     }
   }
-  if (split) contributions(g, gh, light, r);
+  if (split) contributions(g, gh, light);
   // chalk is never solid: knock specks out of every stroke
   g.globalCompositeOperation = 'destination-out';
   for (let i = 0; i < 14000; i++) {
@@ -232,18 +232,14 @@ export const chalkBoard = memo((notes, light = 1, gh) => {
   return c;
 });
 
-// GitHub's last thirteen weeks, right of the chalk line, as on github.com but standing up: a row
+// GitHub's last thirteen weeks, right of the notes, as on github.com but standing up: a row
 // per week (oldest on top), a column per day (Sunday first), GitHub's own levels as greens that
 // get brighter with more work (its dark theme: on a dark board the bright end has to be "more").
 // The month's name sits by the row where it starts; today has a chalk ring.
 const GREENS = ['#1E6B3A', '#0F8A3D', '#26A641', '#39D353'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-function contributions(g, gh, light, r) {
+function contributions(g, gh, light) {
   const x0 = 1150, x1 = 1562, cx = (x0 + x1) / 2;
-  g.lineWidth = 7;
-  g.beginPath(); g.moveTo(1112, 70);
-  for (let y = 70; y <= 760; y += 40) g.lineTo(1112 + (r() - 0.5) * 8, y);
-  g.stroke();
   g.textAlign = 'center';
   g.font = '700 54px "Shantell Sans"';
   g.fillText('github', cx, 118);

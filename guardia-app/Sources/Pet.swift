@@ -27,6 +27,9 @@ final class PetController {
     private var loop: Timer?
     private var last = CACurrentMediaTime()
     private var hiddenForFullScreen = false
+    // over Chrome in full screen he stays (he guards it in focus mode), on the screen's bottom
+    // edge: full screen hides the Dock, though the screen still reports room kept for it
+    private var noDock = false
     private var fullScreenClock: Double = 0
     // focus mode: one leap from where he is onto a Chrome tab, a swipe up there, the fall back
     private var pounce: (from: CGPoint, to: CGPoint, t0: Double, dur: Double)?
@@ -121,34 +124,48 @@ final class PetController {
     }
 
     // A panel that doesn't activate its app still shows over full-screen apps, whatever its
-    // collection behaviour says. So: when the app in front fills the whole screen, put him away.
+    // collection behaviour says. So: when the app in front fills the whole screen, put him away,
+    // except over Chrome, where he walks the bottom edge instead.
     private func checkFullScreen() {
         guard running else { return }
-        let full = PetController.fullScreenInFront(on: screen)
-        guard full != hiddenForFullScreen else { return }
-        hiddenForFullScreen = full
-        if full { landHit(); panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+        let app = PetController.fullScreenApp(on: screen)
+        let stay = app == "com.google.Chrome"
+        let hide = app != nil && !stay
+        if stay != noDock {
+            noDock = stay
+            floorCache = nil
+            // a lower floor: he drops to it; a higher one: he is simply there
+            if stay && !hide && ![.dangle, .fall, .leap].contains(state) && !swipingUp { vy = 0; set(.fall, for: 5) }
+        }
+        guard hide != hiddenForFullScreen else { return }
+        hiddenForFullScreen = hide
+        if hide { landHit(); panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
 
-    static func fullScreenInFront(on screen: NSScreen) -> Bool {
+    /// The bundle id of the app in front when one of its windows covers the whole screen (full
+    /// screen, or a window as big as it), else nil. Covers, not equals: Chrome's full-screen
+    /// window reaches past the screen's edge, and an exact match missed it.
+    static func fullScreenApp(on screen: NSScreen) -> String? {
         guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
               let main = NSScreen.screens.first,
-              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return false }
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
         // window bounds are in top-left coordinates, measured from the main screen's top
         let target = CGRect(x: screen.frame.minX, y: main.frame.maxY - screen.frame.maxY, width: screen.frame.width, height: screen.frame.height)
         for w in list {
             guard (w[kCGWindowOwnerPID as String] as? Int32) == app.processIdentifier, (w[kCGWindowLayer as String] as? Int) == 0,
                   let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { continue }
             let r = CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
-            if abs(r.minX - target.minX) < 2 && abs(r.minY - target.minY) < 2 && abs(r.width - target.width) < 2 && abs(r.height - target.height) < 2 { return true }
+            if r.minX <= target.minX + 2 && r.minY <= target.minY + 2 && r.maxX >= target.maxX - 2 && r.maxY >= target.maxY - 2 {
+                return app.bundleIdentifier ?? "?"
+            }
         }
-        return false
+        return nil
     }
 
     /// For `guardia://status`: what Maestro is doing and when his loop last ticked.
     var debugState: [String: Any] {
         ["running": running, "state": "\(state)", "x": Double(pos.x), "y": Double(pos.y), "lastTickAgo": CACurrentMediaTime() - last,
-         "hiddenForFullScreen": hiddenForFullScreen, "visible": panel.isVisible]
+         "hiddenForFullScreen": hiddenForFullScreen, "noDock": noDock, "visible": panel.isVisible]
     }
 
     // 20 Hz while moving, 10 Hz otherwise (still quick enough to catch every keypress)
@@ -170,7 +187,7 @@ final class PetController {
         let now = CACurrentMediaTime()
         if let f = floorCache, now - f.at < 2 { return (f.ground, f.bounds) }
         let s = screen
-        let floor = s.visibleFrame.minY > s.frame.minY + 8 ? s.visibleFrame.minY : s.frame.minY + 2
+        let floor = !noDock && s.visibleFrame.minY > s.frame.minY + 8 ? s.visibleFrame.minY : s.frame.minY + 2
         let g = floor - (cell.height - cellGround) * scale
         let b = (s.frame.minX + 8)...max(s.frame.minX + 9, s.frame.maxX - size.width - 8)
         floorCache = (g, b, now)
