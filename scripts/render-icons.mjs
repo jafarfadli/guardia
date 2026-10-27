@@ -57,6 +57,29 @@ try {
   await writeFile(join(out, 'manifest.json'), JSON.stringify({ repo: root, apps: apps.map(({ id, name, app, png, group }) => ({ id, name, app, png, group })) }, null, 2));
   console.log(`ikon: ${Object.keys(icons).length}, app terpasang: ${apps.length}`);
 
+  // folders: stamped home folders, and a sticker for every folder inside Koding, the Desktop and home
+  const conf = await tab.evaluate(async () => { const m = await import('./folders.js'); return { folders: m.FOLDERS, parents: m.STICKER_PARENTS, skip: m.SKIP }; });
+  const home = homedir();
+  const tilde = (p) => p.replace(/^~/, home);
+  const flist = conf.folders.map((f) => ({ ...f, path: tilde(f.path) })).filter((f) => existsSync(f.path));
+  const taken = new Set(flist.map((f) => f.path));
+  for (const parent of conf.parents.map(tilde)) {
+    let entries = [];
+    try { entries = readdirSync(parent, { withFileTypes: true }); } catch {}
+    for (const e of entries) {
+      if (!e.isDirectory() || e.name.startsWith('.') || (parent === home && conf.skip.includes(e.name))) continue;
+      const path = join(parent, e.name);
+      if (taken.has(path)) continue;
+      taken.add(path);
+      flist.push({ id: 'f-' + Buffer.from(path).toString('base64url').slice(-24), path, name: e.name });
+    }
+  }
+  const pngs = await tab.evaluate((l) => window.renderFolders(l), flist);
+  await mkdir(join(out, 'folders'), { recursive: true });
+  for (const [id, png] of Object.entries(pngs)) await writeFile(join(out, 'folders', `${id}.png`), Buffer.from(png.split(',')[1], 'base64'));
+  await writeFile(join(out, 'folders.json'), JSON.stringify({ repo: root, apps: flist.map((f) => ({ id: f.id, name: f.name, app: f.path, png: join(out, 'folders', `${f.id}.png`) })) }, null, 2));
+  console.log(`folder: ${flist.length}`);
+
   // Guardia's own icon, as an .icns in the app's resources
   const set = join(root, 'build/AppIcon.iconset');
   await rm(set, { recursive: true, force: true });

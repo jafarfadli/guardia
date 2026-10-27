@@ -74,6 +74,12 @@ case ${1:-apply} in
     node $ROOT/scripts/render-icons.mjs || exit 1
     say "Memasang ikon"
     run_allowed --set-icons apply
+    say "Memasang ikon folder"
+    # a folder's custom icon is a hidden file "Icon\r" inside it: keep it out of every git repo
+    gi=${XDG_CONFIG_HOME:-$HOME/.config}/git/ignore
+    mkdir -p ${gi:h}
+    grep -q $'^Icon\r' $gi 2>/dev/null || printf 'Icon\r\r\n' >> $gi
+    $GUARDIA --set-icons $DIR/folders.json | grep -c '^ok' | sed 's/^/    folder berganti: /'
     say "Merapikan Dock"
     python3 $ROOT/scripts/dock.py apply
     refresh_dock
@@ -83,6 +89,7 @@ case ${1:-apply} in
     [[ -f $DIR/manifest.json ]] || { echo "Belum ada ikon yang dipasang."; exit 0 }
     say "Mengembalikan ikon asli"
     run_allowed --restore-icons restore
+    [[ -f $DIR/folders.json ]] && $GUARDIA --restore-icons $DIR/folders.json >/dev/null
     python3 $ROOT/scripts/dock.py restore
     refresh_dock
     ;;

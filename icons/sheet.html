@@ -21,6 +21,7 @@
 <div id="out"></div>
 <script type="module">
 import { ICONS } from './emblems.js';
+import { FOLDERS, drawFolder } from './folders.js';
 await Promise.all([document.fonts.load('800 20px "Shantell Sans"'), document.fonts.load('20px "Alfa Slab One"')]);
 const S = 1024;
 const out = document.getElementById('out');
@@ -40,6 +41,16 @@ for (const [g, title] of groups) {
   dock.appendChild(document.createElement('i'));
 }
 out.appendChild(dock);
+// folders: the stamped home folders, and a few stickers as they would look
+const fh = document.createElement('h2'); fh.textContent = 'Folder'; out.appendChild(fh);
+const fgrid = document.createElement('div'); fgrid.className = 'grid'; out.appendChild(fgrid);
+const drawF = (f) => { const c = document.createElement('canvas'); c.width = S; c.height = S; drawFolder(c.getContext('2d'), S, f); return c; };
+for (const f of [...FOLDERS, ...['Seoul-sim', 'desktop-customization', 'TA', 'All About FRS', 'penting', 'PTT 23'].map((name) => ({ name }))]) {
+  const fig = document.createElement('figure'); fig.appendChild(drawF(f));
+  const cap = document.createElement('figcaption'); cap.textContent = f.name; fig.appendChild(cap); fgrid.appendChild(fig);
+}
+// for scripts/render-icons.mjs: the folders it found on disk, each as a 1024 PNG
+window.renderFolders = (list) => Object.fromEntries(list.map((f) => [f.id, drawF(f).toDataURL('image/png')]));
 // for scripts/render-icons.mjs: every icon as a 1024 PNG
 window.__icons = Object.fromEntries(ICONS.map((it) => [it.id, draw(it).toDataURL('image/png')]));
 window.__guardia = { ready: true, light: {}, ms: 0 };

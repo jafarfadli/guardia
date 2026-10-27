@@ -73,7 +73,12 @@ open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json
 - Jalankan dari Ghostty. App milik sistem (dari App Store: WhatsApp, LINE, Telegram, Office, CapCut, Jump Desktop, plus Tailscale dan Zoom) meminta password Mac sekali.
 - Kalau macOS bilang Ghostty *"was prevented from modifying apps"*, nyalakan Ghostty di System Settings → Privacy & Security → App Management (jendelanya dibuka otomatis), lalu jalankan lagi.
 - App yang update sendiri bisa kembali ke ikon aslinya. Guardia memberi tahu lewat island, dan baris *Pasang ulang ikon app* di pencarian island menjalankan perintah ini lagi.
-- Gambarnya ada di `icons/emblems.js` (satu fungsi per app). Ubah, lalu jalankan `apply` lagi.
+- Folder ikut berganti jadi map kertas manila:
+  - folder bawaan (Desktop, Documents, Downloads, Pictures, Movies, Music, Public, Applications, bin, Koding) diberi cap tinta;
+  - folder lain di Koding, di Desktop, dan di folder rumah diberi stiker warna berisi inisialnya.
+
+  Ikon folder tersimpan sebagai file tersembunyi `Icon\r` di dalam folder. File itu sudah dimasukkan ke gitignore global, jadi tidak muncul di `git status`. Folder baru baru ikut berganti setelah `apply` dijalankan lagi.
+- Gambarnya ada di `icons/emblems.js` (satu fungsi per app) dan `icons/folders.js`. Ubah, lalu jalankan `apply` lagi.
 
 ## Tema yang perlu satu langkah manual
 

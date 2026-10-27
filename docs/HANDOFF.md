@@ -227,6 +227,11 @@ The user wanted their everyday apps' icons in the room's style. They chose style
   - The original `persistent-apps` is backed up once to `~/.guardia/backup/dock-persistent-apps.plist`.
   - Applied on the user's Mac (2026-10-27): the Dock is grouped and all 29 icons are on. The first run (before App Management was allowed for Ghostty) only got 7. `guardia://icons/apply` opens the installer in Ghostty.
 - `Projects.terminal`: Ghostty launched by AppleScript may open with no window, so the script now creates one with `new window with configuration` in that case. That was the first failed run.
+- **Folders:** `icons/folders.js` draws a manila paper folder.
+  - The 10 home folders get an ink stamp: desktop, documents, downloads, pictures, movies, music, public, applications, terminal (for `bin`) and `</>` (for Koding).
+  - Every other folder in `~/Koding`, `~/Desktop` and `~` gets a coloured sticker with its initials (an all-caps acronym wins: "All About FRS" → FRS). The colour comes from a hash of the name.
+  - `render-icons.mjs` writes `~/.guardia/icons/folders.json`. Folders need no sudo and no App Management, so they were applied from the agent session: 34 folders.
+  - `app-icons.sh` adds `Icon\r` to the global git ignore (`~/.config/git/ignore`, written as `Icon\r\r\n`, because git strips one CR).
 - Guardia's own bundle icon was put in a grey frame by macOS 26 (old-style .icns), so install.sh also sets it as a custom icon (`~/.guardia/icons/self.json`).
 
 ## Tools and gotchas
