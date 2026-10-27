@@ -4,7 +4,7 @@ import math
 import bpy
 from mathutils import Vector
 
-from .core import (ROOM_W as W, ROOM_D as D, ROOM_H as H, WIN, TOKENS, box, cylinder, plane, tube, material, prism,
+from .core import (ROOM_W as W, ROOM_D as D, ROOM_H as H, WIN, EAST, TOKENS, box, cylinder, plane, tube, material, prism,
                    toon_group, color, hex_rgba, collection, rng, mesh_obj)
 
 
@@ -119,7 +119,7 @@ def build_shell():
     box('wall-back', -WIN['wall_t'], W + T, D, D + T, -0.1, H, paint, C, bev=0)
     right = box('wall-right', W, W + T, near, D, -0.1, H, paint, C, bev=0)
     from .core import cut as _cut
-    _cut(right, (W - 0.1, W + T + 0.1, 1.7, 3.3, 0.8, 2.3))  # the east window, out of frame
+    _cut(right, (W - 0.1, W + T + 0.1, EAST['y0'], EAST['y1'], EAST['z0'], EAST['z1']))  # the east window, out of frame
     box('ceiling', -WIN['wall_t'], W + T, near, D + T, H, H + 0.1, ceil, C, bev=0)
     # window wall (x from -wall_t to 0) built around the opening
     t = WIN['wall_t']

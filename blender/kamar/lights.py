@@ -4,7 +4,7 @@ import math
 import bpy
 from mathutils import Vector
 
-from .core import TOKENS, WIN, ROOM_W, ROOM_D, ROOM_H, hex_rgba, collection
+from .core import TOKENS, WIN, EAST, ROOM_W, ROOM_D, ROOM_H, hex_rgba, collection
 
 KEYS = [
     (0.00, dict(name='night', expo=1.0, skyTop='#151D33', skyLow='#26314F', sun=0.0, sunCol='#FFCC8F', amb=0.30, ambTint='#6E78A8', fill=0.10, fillCol='#7C88B8', cool=0.0, lamp=1.0, city=1.0)),
@@ -265,7 +265,7 @@ def apply(phase, cal, weather=None):
     win.hide_render = lk['fill'] <= 0.005
 
     # the morning's cool light through the east window (out of frame, in the right wall)
-    east = sky_panel('EastSky', ROOM_W + 0.12, 1, 1.7, 3.3, 0.8, 2.3)
+    east = sky_panel('EastSky', ROOM_W + 0.12, 1, EAST['y0'], EAST['y1'], EAST['z0'], EAST['z1'])
     east.data.color = hex_rgba(TOKENS['light']['morning'])[:3]
     east.data.energy = cal['eastwin'] * lk['cool']
     east.hide_render = lk['cool'] <= 0.02

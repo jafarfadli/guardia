@@ -157,27 +157,33 @@ function wrap(g, text, maxW) {
   return lines;
 }
 
-export const chalkBoard = memo((notes, light = 1) => {
-  const W = 960, H = 620; // the slate in millimetres
+// The board is 1610 x 810 mm: the notes fill the left two thirds, GitHub's last thirteen weeks
+// (when there is GitHub data) the last third, past a chalk line.
+export const chalkBoard = memo((notes, light = 1, gh) => {
+  const W = 1610, H = 810;
   const [c, g] = flat(W, H);
   const r = rng(91);
   const ink = chalkColour(light);
   g.fillStyle = ink; g.strokeStyle = ink;
+  const split = gh !== undefined;
+  const left = 64, right = split ? 1080 : W - 64, top = 66, bottom = H - 44;
   const items = parseNotes(notes);
-  const left = 54, right = W - 50, top = 52, bottom = H - 34;
   if (!items.length) {
-    // an empty board: Maestro, chalked by someone bored
-    g.lineWidth = 9;
-    const cx = W * 0.5, cy = H * 0.52, s = 120;
+    // an empty board: Maestro asleep, chalked by someone bored
+    g.lineWidth = 11;
+    const cx = (left + right) / 2, cy = H * 0.55, s = 150;
     g.beginPath(); g.ellipse(cx, cy, s, s * 0.82, 0, 0.15, Math.PI * 2 - 0.15); g.stroke();
     g.beginPath(); g.moveTo(cx - s * 0.9, cy - s * 0.25); g.lineTo(cx - s * 0.7, cy - s * 1.25); g.lineTo(cx - s * 0.18, cy - s * 0.78); g.stroke();
     g.beginPath(); g.moveTo(cx + s * 0.9, cy - s * 0.25); g.lineTo(cx + s * 0.7, cy - s * 1.25); g.lineTo(cx + s * 0.18, cy - s * 0.78); g.stroke();
-    for (const dx of [-0.36, 0.36]) { g.beginPath(); g.moveTo(cx + dx * s - 18, cy - 4); g.quadraticCurveTo(cx + dx * s, cy + 14, cx + dx * s + 18, cy - 4); g.stroke(); }
-    g.font = '600 52px "Shantell Sans"'; g.textAlign = 'center';
-    g.fillText('zzz', cx + s * 1.25, cy - s * 0.9);
+    for (const dx of [-0.36, 0.36]) { g.beginPath(); g.moveTo(cx + dx * s - 22, cy - 4); g.quadraticCurveTo(cx + dx * s, cy + 16, cx + dx * s + 22, cy - 4); g.stroke(); }
+    g.font = '600 64px "Shantell Sans"'; g.textAlign = 'center';
+    g.fillText('zzz', cx + s * 1.3, cy - s * 0.95);
+    g.font = '600 52px "Shantell Sans"';
+    g.fillText('catatan: klik island → Catatan', cx, bottom - 6);
+    g.textAlign = 'left';
   } else {
-    // as big as the notes allow: about six lines at 84 px, smaller when there is more
-    let size = 86, laid;
+    // as big as the notes allow: about eight lines at 76 mm, smaller when there is more
+    let size = 78, laid;
     for (;;) {
       laid = [];
       for (const it of items) {
@@ -186,13 +192,13 @@ export const chalkBoard = memo((notes, light = 1) => {
         const indent = it.kind === 'item' || it.kind === 'done' ? size * 0.72 : 0;
         wrap(g, it.text, right - left - indent).forEach((line, k) => laid.push({ ...it, line, first: k === 0, fs, indent }));
       }
-      const need = laid.reduce((s, l) => s + l.fs * 1.16, 0);
-      if (need <= bottom - top || size <= 56) break;
-      size -= 6;
+      const need = laid.reduce((sum, l) => sum + l.fs * 1.18, 0);
+      if (need <= bottom - top || size <= 54) break;
+      size -= 4;
     }
     let y = top;
     for (const l of laid) {
-      const lh = l.fs * 1.16;
+      const lh = l.fs * 1.18;
       if (y + lh > bottom + 4) { g.font = `600 ${size}px "Shantell Sans"`; g.fillText('…', left, y + l.fs * 0.86); break; }
       g.font = `${l.kind === 'head' ? 800 : 600} ${l.fs}px "Shantell Sans"`;
       const base = y + l.fs * 0.86;
@@ -214,62 +220,78 @@ export const chalkBoard = memo((notes, light = 1) => {
       y += lh;
     }
   }
+  if (split) contributions(g, gh, light, r);
   // chalk is never solid: knock specks out of every stroke
   g.globalCompositeOperation = 'destination-out';
-  for (let i = 0; i < 9000; i++) {
+  for (let i = 0; i < 14000; i++) {
     g.fillStyle = `rgba(0,0,0,${0.35 + r() * 0.5})`;
-    const s = 1.2 + r() * 2.6;
-    g.fillRect(r() * W, r() * H, s, s * (0.5 + r()));
+    const sz = 1.4 + r() * 3;
+    g.fillRect(r() * W, r() * H, sz, sz * (0.5 + r()));
   }
   g.globalCompositeOperation = 'source-over';
   return c;
 });
 
-// ------------------------------------------------------------------ the GitHub card
-// The card's own pixels (blender/textures.js CARD: 420 × 520, a printed mustard band on top).
-// Ink and red stamps only, laid with multiply on the printed card.
-export const githubCard = memo((gh) => {
-  const W = 420, H = 520;
-  const [c, g] = flat(W, H);
-  g.fillStyle = INK;
+// GitHub's last thirteen weeks, right of the chalk line, as on github.com but standing up: a row
+// per week (oldest on top), a column per day (Sunday first), GitHub's own levels as greens that
+// get brighter with more work (its dark theme: on a dark board the bright end has to be "more").
+// The month's name sits by the row where it starts; today has a chalk ring.
+const GREENS = ['#1E6B3A', '#0F8A3D', '#26A641', '#39D353'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+function contributions(g, gh, light, r) {
+  const x0 = 1150, x1 = 1562, cx = (x0 + x1) / 2;
+  g.lineWidth = 7;
+  g.beginPath(); g.moveTo(1112, 70);
+  for (let y = 70; y <= 760; y += 40) g.lineTo(1112 + (r() - 0.5) * 8, y);
+  g.stroke();
+  g.textAlign = 'center';
+  g.font = '700 54px "Shantell Sans"';
+  g.fillText('github', cx, 118);
   if (!gh) {
-    g.font = '700 40px "Shantell Sans"'; g.fillText('gh belum', 30, 170); g.fillText('login', 30, 220);
-    return c;
+    g.font = '600 52px "Shantell Sans"';
+    g.fillText('gh belum', cx, 360); g.fillText('login', cx, 424);
+    g.textAlign = 'left';
+    return;
   }
-  const streak = String(gh.streak ?? 0);
-  const ns = fitFont(g, streak, (s) => `${s}px "Alfa Slab One"`, 168, 250, 60);
-  g.fillText(streak, 26, 96 + ns * 0.92);
-  const nx = 26 + g.measureText(streak).width + 14;
-  g.font = '800 50px "Shantell Sans"';
-  g.fillText('hari', nx, 96 + ns * 0.5);
-  g.font = '600 32px "Shantell Sans"';
-  g.fillText(gh.streak > 0 ? 'beruntun' : 'ayo commit', nx, 96 + ns * 0.5 + 40);
-  // the last weeks, a stamp for every day with commits
-  const weeks = (gh.weeks || []).slice(-15);
-  const cell = 26, x0 = W - 15 - weeks.length * cell, y0 = H - 22 - 7 * cell;
-  const r = rng(5);
-  weeks.forEach((wk, i) => wk.forEach((n, d) => {
-    if (n < 0) return; // a day still to come
-    const x = x0 + i * cell + cell / 2, y = y0 + d * cell + cell / 2;
-    g.save(); g.translate(x, y); g.rotate((r() - 0.5) * 0.25);
-    if (n > 0) {
-      g.globalAlpha = n >= 5 ? 1 : n >= 2 ? 0.75 : 0.5;
-      g.fillStyle = RED; g.fillRect(-10, -10, 20, 20);
-    } else {
-      g.globalAlpha = 0.28; g.strokeStyle = INK; g.lineWidth = 2; g.strokeRect(-8.5, -8.5, 17, 17);
+  const weeks = (gh.weeks || []).slice(-13);
+  const pitchX = 44, pitchY = 43, cell = 35, gx = x1 - 7 * pitchX, gy = 196;
+  // Sen, Rab, Jum over their columns, as github.com marks Mon, Wed, Fri
+  g.font = '600 28px "Shantell Sans"';
+  for (const [d, label] of [[1, 'Sen'], [3, 'Rab'], [5, 'Jum']]) g.fillText(label, gx + d * pitchX + cell / 2, gy - 14);
+  const k = Math.max(0.18, Math.min(1.25, light));
+  const tint = (hex) => `rgb(${[1, 3, 5].map((i) => Math.round(Math.min(255, parseInt(hex.slice(i, i + 2), 16) * k))).join(',')})`;
+  let lastMonth = -1;
+  weeks.forEach((wk, row) => {
+    const y = gy + row * pitchY;
+    // the month whose first day falls in this week (or the first row's own month)
+    const start = new Date((wk.start || '') + 'T12:00:00');
+    let month = -1;
+    for (let d = 0; d < 7 && !isNaN(start); d++) {
+      const day = new Date(start.getTime() + d * 86400000);
+      if (day.getDate() === 1) month = day.getMonth();
     }
-    g.restore();
-  }));
-  if (weeks.length) {
-    const last = weeks[weeks.length - 1];
-    const d = last.findLastIndex((n) => n >= 0);
-    if (d >= 0) {
-      g.strokeStyle = INK; g.lineWidth = 3;
-      g.beginPath(); g.arc(x0 + (weeks.length - 1) * cell + cell / 2, y0 + d * cell + cell / 2, 15, 0, Math.PI * 2); g.stroke();
+    if (row === 0 && month < 0 && !isNaN(start)) month = start.getMonth();
+    if (month >= 0 && month !== lastMonth) {
+      g.textAlign = 'right'; g.font = '700 32px "Shantell Sans"';
+      g.fillText(MONTHS[month], gx - 12, y + cell * 0.8);
+      g.textAlign = 'center';
+      lastMonth = month;
     }
+    (wk.days || []).forEach((level, d) => {
+      if (level < 0) return;
+      const x = gx + d * pitchX;
+      g.beginPath(); g.roundRect(x, y, cell, cell, 6);
+      if (level > 0) { g.save(); g.fillStyle = tint(GREENS[Math.min(4, level) - 1]); g.fill(); g.restore(); }
+      else { g.save(); g.globalAlpha = 0.35; g.lineWidth = 3; g.stroke(); g.restore(); }
+    });
+  });
+  const last = weeks.length - 1, today = last >= 0 ? (weeks[last].days || []).findLastIndex((v) => v >= 0) : -1;
+  if (today >= 0) {
+    g.lineWidth = 4.5;
+    g.beginPath(); g.arc(gx + today * pitchX + cell / 2, gy + last * pitchY + cell / 2, cell * 0.78, 0, Math.PI * 2); g.stroke();
   }
-  return c;
-});
+  g.textAlign = 'left';
+}
 
 // ------------------------------------------------------------------ the monitor
 // Claude Code sessions with Remote Control, as a terminal: a green dot while one is working,
@@ -277,62 +299,63 @@ export const githubCard = memo((gh) => {
 // Self-lit, so it is laid with source-over. Null: leave the code editor.
 export const sessionsScreen = memo((list) => {
   if (!list || !list.length) return null;
-  const W = 470, H = 305;
+  const W = 620, H = 390;
   const [c, g] = flat(W, H);
   g.fillStyle = '#1E2733'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#7F8FA0'; g.font = `600 24px ${MONO}`;
-  g.fillText('claude · remote control', 22, 38);
-  g.fillStyle = '#3A4A5C'; g.fillRect(22, 52, W - 44, 3);
-  const rows = list.slice(0, list.length > 5 ? 4 : 5);
-  rows.forEach((s, i) => {
-    const y = 96 + i * 46;
-    const col = s.running ? '#86C26E' : '#E0604C';
-    g.fillStyle = col; g.beginPath(); g.arc(36, y - 9, 11, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#8293A6'; g.font = `600 28px ${MONO}`;
+  g.fillText('claude · remote control', 30, 50);
+  g.fillStyle = '#3A4A5C'; g.fillRect(30, 68, W - 60, 3);
+  const many = list.length > 4;
+  list.slice(0, many ? 3 : 4).forEach((s, i) => {
+    const y = 148 + i * 74;
+    g.fillStyle = s.running ? '#86C26E' : '#E0604C';
+    g.beginPath(); g.arc(52, y - 17, 18, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#E8DCC0';
-    fitFont(g, s.name, (z) => `700 ${z}px ${MONO}`, 30, 330, 16);
-    g.fillText(s.name, 60, y);
+    fitFont(g, s.name, (z) => `700 ${z}px ${MONO}`, 54, W - 120, 24);
+    g.fillText(s.name, 90, y);
   });
-  if (list.length > 5) {
-    g.fillStyle = '#7F8FA0'; g.font = `600 22px ${MONO}`;
-    g.fillText(`+${list.length - 4} lagi`, 60, 96 + 4 * 46);
+  if (many) {
+    g.fillStyle = '#8293A6'; g.font = `600 40px ${MONO}`;
+    g.fillText(`+${list.length - 3} lagi`, 90, 148 + 3 * 74);
   }
   return c;
 });
 
 // ------------------------------------------------------------------ the battery dials
 // Half the texture's pixels (blender/textures.js gauges(): 1488 × 488, four dials).
+// The face is 804 x 324 mm (textures.js gauges(): four dials at 0.42 of the height, 166 px
+// radius at 2 px/mm, and a label plate under each).
 const DIAL_N = 4;
 export const gauges = memo((list) => {
-  const W = 744, H = 244, R = 64;
+  const W = 804, H = 324, R = 83;
   const [c, g] = flat(W, H);
   const ang = (f) => (-210 + f * 240) * Math.PI / 180;
   for (let k = 0; k < DIAL_N; k++) {
     const dev = (list || [])[k];
-    const cx = (k + 0.5) * (W / DIAL_N), cy = H * 0.4;
+    const cx = (k + 0.5) * (W / DIAL_N), cy = H * 0.42;
     const known = dev && typeof dev.percent === 'number';
     const f = known ? Math.max(0, Math.min(1, dev.percent / 100)) : -0.05;
     const a = ang(f);
-    // needle: a tapered ink stroke with a red pin
     g.strokeStyle = known && !dev.stale ? INK : 'rgba(43,28,20,0.45)';
-    g.lineWidth = 6;
-    g.beginPath(); g.moveTo(cx - Math.cos(a) * R * 0.16, cy - Math.sin(a) * R * 0.16); g.lineTo(cx + Math.cos(a) * R * 0.8, cy + Math.sin(a) * R * 0.8); g.stroke();
-    g.fillStyle = RED; g.beginPath(); g.arc(cx, cy, 8, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 5;
+    g.beginPath(); g.moveTo(cx - Math.cos(a) * R * 0.16, cy - Math.sin(a) * R * 0.16); g.lineTo(cx + Math.cos(a) * R * 0.78, cy + Math.sin(a) * R * 0.78); g.stroke();
+    g.fillStyle = RED; g.beginPath(); g.arc(cx, cy, 7, 0, Math.PI * 2); g.fill();
     g.strokeStyle = INK; g.lineWidth = 2.5; g.stroke();
-    // the number under the pin, the name on the plate
+    // the number, big, in the dial's lower half; the name on the plate
     g.textAlign = 'center';
     g.fillStyle = known ? (dev.percent <= 20 && !dev.charging ? RED : INK) : 'rgba(43,28,20,0.5)';
-    g.font = '30px "Alfa Slab One"';
-    g.fillText(known ? String(dev.percent) : '–', cx, cy + R * 0.66);
+    g.font = '50px "Alfa Slab One"';
+    g.fillText(known ? String(dev.percent) : '–', cx, cy + R * 0.72);
     if (known && dev.charging) {
-      const bx = cx + 30, by = cy + R * 0.42;
-      const bolt = [[bx + 1, by - 13], [bx - 7, by + 1], [bx - 1, by + 1], [bx - 3, by + 13], [bx + 7, by - 2], [bx + 1, by - 2]];
+      const bx = cx + 48, by = cy + R * 0.5;
+      const bolt = [[bx + 1, by - 14], [bx - 8, by + 1], [bx - 1, by + 1], [bx - 3, by + 14], [bx + 8, by - 2], [bx + 1, by - 2]];
       g.fillStyle = MUSTARD; g.beginPath(); bolt.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill();
       g.strokeStyle = INK; g.lineWidth = 2; g.stroke();
     }
     g.fillStyle = dev ? INK : 'rgba(43,28,20,0.4)';
     const name = dev ? dev.name : '—';
-    fitFont(g, name, (s) => `800 ${s}px "Shantell Sans"`, 28, 112, 14);
-    g.fillText(name, cx, H - 26);
+    fitFont(g, name, (z) => `800 ${z}px "Shantell Sans"`, 34, 136, 16);
+    g.fillText(name, cx, H - 22);
     g.textAlign = 'left';
   }
   return c;
@@ -351,6 +374,81 @@ export function signalLens(g, level, warpTo) {
   warpTo(g, c);
   return { y: y / H, col };
 }
+
+// ------------------------------------------------------------------ the photos on the shelves
+// A picture for each frame: the photo chosen in the island (a data: URL from Guardia, already
+// faded toward the room's cream), else a drawing printed in the room's colours. The frame's
+// own proportions come from its quad on screen; the picture fills it, cropped from the middle.
+const photoImages = new Map();
+export function photoImage(src, onload) {
+  if (!src) return null;
+  let e = photoImages.get(src);
+  if (!e) {
+    e = { img: new Image(), ok: false };
+    e.img.onload = () => { e.ok = true; onload(); };
+    e.img.src = src;
+    photoImages.set(src, e);
+    if (photoImages.size > 12) photoImages.delete(photoImages.keys().next().value);
+  }
+  return e.ok ? e.img : null;
+}
+
+export function photo(slot, img, aspect) {
+  const H = 400, W = Math.round(H * aspect);
+  const [c, g] = flat(W, H);
+  if (img) {
+    const s = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+    const w = img.naturalWidth * s, h = img.naturalHeight * s;
+    g.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+    return c;
+  }
+  DRAWINGS[slot % DRAWINGS.length](g, W, H);
+  return c;
+}
+
+// Until a photo is chosen: flat drawings, one per frame.
+const DRAWINGS = [
+  // Maestro sitting in the sun
+  (g, W, H) => {
+    g.fillStyle = '#E9C98C'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#C38F33'; g.beginPath(); g.ellipse(W / 2, H * 0.72, W * 0.3, H * 0.24, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(W / 2, H * 0.38, W * 0.2, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.moveTo(W * 0.33, H * 0.32); g.lineTo(W * 0.36, H * 0.14); g.lineTo(W * 0.46, H * 0.25); g.fill();
+    g.beginPath(); g.moveTo(W * 0.67, H * 0.32); g.lineTo(W * 0.64, H * 0.14); g.lineTo(W * 0.54, H * 0.25); g.fill();
+    g.strokeStyle = INK; g.lineWidth = W * 0.02;
+    for (const dx of [-0.08, 0.08]) { g.beginPath(); g.moveTo(W * (0.5 + dx) - 8, H * 0.38); g.quadraticCurveTo(W * (0.5 + dx), H * 0.41, W * (0.5 + dx) + 8, H * 0.38); g.stroke(); }
+  },
+  // the sea, a red sun
+  (g, W, H) => {
+    g.fillStyle = '#9FB8C8'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#B04A3A'; g.beginPath(); g.arc(W * 0.66, H * 0.42, H * 0.16, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#34466A'; g.fillRect(0, H * 0.58, W, H * 0.42);
+    g.fillStyle = '#E2D1AE'; for (let i = 0; i < 4; i++) g.fillRect(W * 0.1, H * (0.66 + i * 0.08), W * (0.3 + (i % 2) * 0.2), H * 0.02);
+  },
+  // a jar of flowers
+  (g, W, H) => {
+    g.fillStyle = '#E4D3AE'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#3F6874'; g.fillRect(W * 0.38, H * 0.56, W * 0.24, H * 0.3);
+    g.strokeStyle = '#5E6B38'; g.lineWidth = W * 0.025;
+    for (const [x, y] of [[0.3, 0.26], [0.5, 0.18], [0.68, 0.3]]) { g.beginPath(); g.moveTo(W * 0.5, H * 0.58); g.lineTo(W * x, H * y); g.stroke(); }
+    for (const [x, y, col] of [[0.3, 0.26, '#B04A3A'], [0.5, 0.18, '#C38F33'], [0.68, 0.3, '#A9573A']]) { g.fillStyle = col; g.beginPath(); g.arc(W * x, H * y, W * 0.09, 0, Math.PI * 2); g.fill(); }
+  },
+  // hills
+  (g, W, H) => {
+    g.fillStyle = '#BFD1DD'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#6F7A48'; g.beginPath(); g.moveTo(0, H * 0.7); g.quadraticCurveTo(W * 0.35, H * 0.3, W * 0.7, H * 0.62); g.quadraticCurveTo(W * 0.85, H * 0.52, W, H * 0.6); g.lineTo(W, H); g.lineTo(0, H); g.fill();
+    g.fillStyle = '#5E6B38'; g.fillRect(0, H * 0.82, W, H * 0.18);
+  },
+  // the city at dusk
+  (g, W, H) => {
+    g.fillStyle = '#E58A63'; g.fillRect(0, 0, W, H * 0.6);
+    g.fillStyle = '#5E6E9C'; g.fillRect(0, 0, W, H * 0.25);
+    g.fillStyle = '#34466A';
+    for (const [x, w, h] of [[0, 0.18, 0.5], [0.16, 0.14, 0.62], [0.3, 0.2, 0.42], [0.5, 0.12, 0.7], [0.62, 0.2, 0.5], [0.82, 0.18, 0.58]]) g.fillRect(W * x, H * (1 - h), W * w, H * h);
+    g.fillStyle = '#E9C98C';
+    for (let i = 0; i < 14; i++) g.fillRect(W * (0.05 + (i * 0.067) % 0.9), H * (0.55 + ((i * 37) % 30) / 100), W * 0.025, H * 0.03);
+  },
+];
 
 // ------------------------------------------------------------------ the weather in the window
 // Flat comic clouds for a partly cloudy sky; stars on a clear night; drops on the glass when it

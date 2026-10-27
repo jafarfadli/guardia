@@ -3,6 +3,7 @@
 // the beam, and rain falling in the window.
 // URL parameters (previews and the host app): time=HH:MM  date=YYYY-MM-DD  still=1  dpr=2  raw=1
 // lowpower=1  demo=1 (sample widgets)  weather=clear|partly|cloudy|rain|storm|fog
+// The live layers: notes, github, sessions, batteries, load, weather, photos (setWidgets).
 import { TOKENS } from './tokens.gen.js';
 import { roomLight } from './sun.js';
 import { Grader } from './grade.js';
@@ -72,15 +73,18 @@ function pick(phase, cloudy) {
 function drawWidgets(ctx, px, light, date) {
   const ov = meta.overlays, w = state.widgets;
   const on = (name) => ov[name] && ov[name].map(px);
-  if ('github' in w && ov.github) {
-    ctx.save(); ctx.globalCompositeOperation = 'multiply';
-    W.warp(ctx, W.githubCard(w.github), on('github'));
-    ctx.restore();
-  }
   if ('batteries' in w && ov.gauges) W.masked(ctx, 'gauges', px, 'multiply', (g) => W.warp(g, W.gauges(w.batteries), on('gauges')));
-  if ('notes' in w && ov.chalk) {
+  // the board: the notes, and GitHub's last thirteen weeks beside them
+  if (('notes' in w || 'github' in w) && ov.chalk) {
     const light = Math.round(slateLight(ctx, on('chalk')) * 20) / 20;
-    W.masked(ctx, 'chalk', px, 'source-over', (g) => W.warp(g, W.chalkBoard(w.notes, light), on('chalk')));
+    W.masked(ctx, 'chalk', px, 'source-over', (g) => W.warp(g, W.chalkBoard(w.notes || '', light, 'github' in w ? w.github : undefined), on('chalk')));
+  }
+  // the five frames on the shelves: chosen photos, or drawings until then
+  for (let i = 0; ov['photo' + i]; i++) {
+    const quad = on('photo' + i);
+    const aspect = Math.hypot(quad[1][0] - quad[0][0], quad[1][1] - quad[0][1]) / Math.hypot(quad[3][0] - quad[0][0], quad[3][1] - quad[0][1]);
+    const img = W.photoImage((w.photos || [])[i], soon);
+    W.masked(ctx, 'photo' + i, px, 'multiply', (g) => W.warp(g, W.photo(i, img, aspect), quad));
   }
   const screen = W.sessionsScreen(w.sessions);
   if (screen && ov.screen) W.masked(ctx, 'screen', px, 'source-over', (g) => W.warp(g, screen, on('screen')));
@@ -191,7 +195,7 @@ async function render() {
   const ov = meta.overlays;
   ctx.globalCompositeOperation = 'multiply';
   onQuad(ctx, ov.calendar.map(px), 310, 470, (g) => calendarPage(g, 310, 470, date));
-  onQuad(ctx, ov.clock.map(px), 400, 400, (g) => hands(g, date));
+  if (ov.clock) onQuad(ctx, ov.clock.map(px), 400, 400, (g) => hands(g, date));
   onQuad(ctx, ov.sleeve.map(px), 320, 320, (g) => sleeve(g, 320, state.nowPlaying));
   ctx.globalCompositeOperation = 'source-over';
   drawWidgets(ctx, px, light, date);
@@ -214,7 +218,8 @@ async function render() {
   const w = state.widgets;
   window.__guardia = {
     light: { name: light.name, elevation: light.elevation, phase: light.phase, frame: a.file },
-    widgets: { notes: W.parseNotes(w.notes).length, streak: w.github?.streak ?? null, sessions: (w.sessions || []).length,
+    widgets: { notes: W.parseNotes(w.notes).length, github: w.github === undefined ? null : (w.github?.total ?? 'gh?'), sessions: (w.sessions || []).length,
+               photos: (w.photos || []).filter(Boolean).length,
                batteries: (w.batteries || []).map((d) => `${d.name} ${d.percent ?? '-'}`), load: w.load || null, weather: wx?.kind || null,
                loc: [Math.round(state.loc.lat * 10) / 10, Math.round(state.loc.lon * 10) / 10] },
     rain: rain.on ? [rainEl.width, rainEl.height, rain.drops.length] : null,
@@ -268,11 +273,17 @@ Promise.all(faces.map((f) => document.fonts.load(f))).catch(() => {}).then(async
 
 // Sample widgets for previews (demo=1).
 function demo() {
+  // thirteen weeks up to this one (Sunday first), levels 0..4, today the last day so far
+  const now = new Date(), sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
   const weeks = [];
-  for (let i = 0; i < 15; i++) weeks.push([0, 1, 2, 3, 4, 5, 6].map((d) => (i === 14 && d > 2 ? -1 : (i * 7 + d) % 3 === 0 ? 0 : (i + d) % 6)));
+  for (let i = 12; i >= 0; i--) {
+    const start = new Date(sunday.getTime() - i * 7 * 86400000);
+    const days = [0, 1, 2, 3, 4, 5, 6].map((d) => (i === 0 && d > now.getDay() ? -1 : (i * 5 + d * 3) % 7 < 3 ? 0 : ((i + d) % 4) + 1));
+    weeks.push({ start: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`, days });
+  }
   return {
     notes: '# besok\n- kirim revisi bab 3\n- beli kopi\nx bayar listrik\n- telpon ibu',
-    github: { streak: 12, weeks },
+    github: { weeks, total: 140 },
     sessions: [{ name: 'DESKTOP', running: true }, { name: 'api-kampus', running: false }],
     batteries: [{ name: 'MAC', percent: 84, charging: true }, { name: 'IPHONE', percent: 46 }, { name: 'AIRPODS', percent: 15 }, { name: 'MOUSE', percent: null }],
     load: 'amber',

@@ -1,6 +1,6 @@
 # Handoff — Guardia desktop
 
-Read this first if you are picking up the work in a new session. Last updated: 2026-10-27. Revision rounds 2–10 have shipped (round 10: widgets in the room, the ink fix, new plants). Waiting on the user's feedback.
+Read this first if you are picking up the work in a new session. Last updated: 2026-10-27. Revision rounds 2–11 have shipped (round 11: the room rebuilt as a close "work corner" so the widgets read, plus the photo shelf). Waiting on the user's feedback.
 
 ## What the user wants
 
@@ -310,6 +310,39 @@ The user chose widgets drawn **as things in the room** (not WidgetKit, which nee
 - `Weather`: CoreLocation (macOS reports `.authorizedAlways` for when-in-use), last place saved in UserDefaults, Jakarta otherwise; Open-Meteo every 20 min with the position rounded to 0.1°. `guardia://weather/<kind>` overrides until the next report.
 - Island: the folded status lost the battery (shown only when ≤20% and unplugged); a **Catatan** page (NSTextView on ruled paper, Esc closes, saved to `~/.guardia/notes.txt`); VS Code list starts with **Folder baru** (creates `~/Koding/<name>`, opens VS Code; ⌘↵ Claude Code).
 - Info.plist gained location and Bluetooth usage strings.
+
+## Revision round 11 (done, 2026-10-27): the work corner
+
+The user found the room too full and the widgets too small to read. Measured on a 1440 × 900 screen, the old view (a 5.4 × 5.2 m room seen with a 72° lens from about 6 m) put the monitor's text at about 5 pt, the dials' at about 5 pt and the chalk at about 12 pt. Decisions: **"Pojok kerja"** (a close view of the work wall), keep the **now-playing record** and the **tear-off calendar with pasaran**, and replace the bookshelf with a **photo shelf the user fills from the island**. Then, mid-build: photos are **not pixel art** (an exception to DESIGN.md's "people in pictures are pixel art", the user's call), and the shelf carries **decorations too**, not only photos.
+
+### The room
+- `core.py`: `ROOM_W, ROOM_D, ROOM_H = 4.0, 3.8, 2.7` (a kos-sized room). The window moved back on the left wall (`WIN y 1.55–3.0`). New shared constants: `EAST` (the morning window's cut in the right wall, also the EastSky light) and `CAMERA` (`loc (2.2, -1.15, 1.45)`, yaw 5°, fov 62°, shift_y -0.065). `build.camera()` reads it.
+- `props.py` was rewritten from "the room's contents" down:
+  - Back wall, left to right: the monstera in the corner (kept below the board; saturated greens, because a muted green read as dry paper in the afternoon beam), the **chalkboard** (slate 1.61 × 0.81 m), the **tear-off calendar** (0.4 × 0.6 m), and the **photo shelves** (three floating shelves, `FRAMES`, `SHELF_Z`).
+  - Under the board: the desk (`DESK`), a bigger **monitor** (screen 0.62 × 0.39 m), the desk lamp, and the **battery panel** on the wall at the desk's right end (face 0.804 × 0.324 m), wired to the outlet.
+  - Under the shelves: a **record cabinet** with the turntable and the **now-playing sleeve** on a stand. The **toy traffic light** stands on the top shelf.
+  - Floor: the rug and Maestro's bed with a yarn ball. The chair is pulled out and turned aside (parented to an empty, `chair-rig`) so it leaves the desk in sight.
+  - Gone: cork board, poster, guitar, bookshelf, string lights, pendant lamp, wall clock, record crate, floor clutter, bin, switch. Their textures (cork, poster, clock, photo) were removed from `textures.js` and `blender/textures/`.
+- `LB()` builds a small box standing on its own centre, so it can be turned in place. The old code turned `B()` boxes, whose origin is the world origin, so the desk's paper sheet flew off toward the monstera.
+- The cardigan's sleeve tube is now `cardigan-sleeve`; it used to share the name `sleeve` with the record sleeve.
+- On screen (1440 × 900): board ≈ 385 × 200 pt (notes at ≈ 19 pt), monitor ≈ 165 × 105 pt (names at ≈ 14 pt), dials ≈ 200 × 85 pt, calendar ≈ 100 × 170 pt, photos ≈ 60–80 pt. Everything readable sits left of x ≈ 1300 pt, clear of the desktop icons' column.
+- A frame takes about 2 minutes at scale 1.0 now (was 75 s): the full render is about 1.5 hours.
+
+### The page
+- `chalkBoard(notes, light, github)`: the notes on the left two thirds; past a chalk line, GitHub's **last 13 weeks as green squares**, standing up (a row per week, oldest on top; a column per day, Sunday first), month names by the row where a month starts, Sen/Rab/Jum over their columns, today ringed in chalk. The user dropped the streak number for this. Levels are GitHub's own (`contributionLevel` 0–4 from GraphQL), drawn in GitHub's dark-theme greens (brighter = more, which reads on a dark board), scaled by the board's light like the chalk. The cork board's GitHub card is gone.
+- Why the board missed the user's 21–22 October commits: they went to a **private** repo (`final1-itb`), and GitHub's calendar (GraphQL as well as the public graph) leaves private contributions out unless "Include private contributions on my profile" is on. The owner sees them on github.com when signed in, which is why the user saw them there. Told the user; nothing to fix in Guardia.
+- `photo(slot, img, aspect)`: each frame's picture, cover-fitted to the frame's proportions (taken from its quad), laid with multiply on the paper. Without a photo, one of five flat drawings (Maestro, the sea, flowers, hills, the city), with no people, so DESIGN.md's pixel-art rule for people is not touched.
+- `sessionsScreen` (620 × 390, up to four names at 54 px) and `gauges` (804 × 324 mm, numbers at 50) were resized for the new surfaces.
+
+### The app
+- `Photos.swift`: five slots, `~/.guardia/photos/frameN-<time>.jpg` plus `photos.json` (the original file names). `Photos.print` turns the picture upright (ImageIO thumbnail with transform), at most 640 px, 15% less colour and 10% toward cream, JPEG 0.84 (≈ 90 KB). The page gets `photos` as data: URLs (`null` = the drawing).
+- Island: **Rak foto** in the menu, a list of the five frames (↵ opens an NSOpenPanel, ⌘↵ restores the drawing). Dropping an image file on the island puts it in the first empty frame, or in the frame under the pointer while that list is open (`IslandView.performDragOperation`).
+
+### Reaching the island when it is covered (same day)
+- The quiet island steps behind a window covering the top centre (a maximised or full-screen app), so it never hides a centred window title. The user found it hard to reach. Two ways in now:
+  - **⌃Space** (`Hotkey.swift`, a Carbon `RegisterEventHotKey`: no Accessibility or Input Monitoring) toggles the search from anywhere, full-screen apps included. ⌃Space was free here: Spotlight is ⌘Space and the input-source shortcut on ⌃Space is off. `guardia://status` reports `hotkey: true` when it registered.
+  - **The top edge:** the island's 10 Hz tick reads `NSEvent.mouseLocation`; the pointer against the top edge within 180 pt of the middle brings the island forward (`revealUntil`), and it stays while the pointer is on it.
+- The status menu shows "Cari… ⌃Space".
 
 ## Tools and gotchas
 

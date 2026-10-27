@@ -16,8 +16,12 @@ ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 TOKENS = json.load(open(os.path.join(ROOT, 'design', 'tokens.json')))
 TEX = os.path.join(ROOT, 'blender', 'textures')
 
-ROOM_W, ROOM_D, ROOM_H = 5.4, 5.2, 2.75
-WIN = dict(y0=2.45, y1=4.0, z0=0.9, z1=2.32, glass_x=-0.12, transom=1.86, frame=0.055, wall_t=0.2)
+# A small room (about a kos room), seen close: its back wall carries what is worth reading.
+# (Until 2026-10-27 it was 5.4 x 5.2 m seen from the far end, and every widget came out tiny.)
+ROOM_W, ROOM_D, ROOM_H = 4.0, 3.8, 2.7
+WIN = dict(y0=1.55, y1=3.0, z0=0.9, z1=2.22, glass_x=-0.12, transom=1.8, frame=0.055, wall_t=0.2)
+EAST = dict(y0=0.7, y1=2.2, z0=0.8, z1=2.3)  # the morning window in the right wall, out of frame
+CAMERA = dict(loc=(2.2, -1.15, 1.45), yaw=5.0, fov=62.0, shift_y=-0.065)
 
 
 def srgb_to_linear(c):

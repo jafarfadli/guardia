@@ -48,6 +48,7 @@ enum Snapshot {
         shot("search-dark") {}
         shot("search-code") { isl.previewSearch("", list: .code) }
         shot("search-newfolder") { isl.previewSearch("proyek-baru", list: .newFolder) }
+        shot("search-photos") { isl.previewSearch("", list: .photos) }
         shot("search-claude") { isl.previewSearch("", list: .claude) }
         shot("search-timer") { isl.previewSearch("", list: .timer) }
         shot("search-timer-typed") { isl.previewSearch("10 masak", list: .timer) }

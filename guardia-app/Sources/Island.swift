@@ -109,12 +109,13 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate, N
         tick?.tolerance = 0.03
     }
 
-    // When a window covers the top centre (a maximised app), the quiet island steps behind
-    // it; anything worth seeing (a new song, a toast, an alarm) brings it forward.
+    // When a window covers the top centre (a maximised app, or one in full screen), the quiet
+    // island steps behind it; anything worth seeing (a new song, a toast, an alarm) brings it
+    // forward, and so does pushing the pointer against the top edge near the middle, or ⌃Space.
     private let frontLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
     private let backLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
     private func updateLevel() {
-        let wantsFront = hover || view.peek || toastUntil != nil || searching || ringing != nil || editingNotes
+        let wantsFront = hover || view.peek || toastUntil != nil || searching || ringing != nil || editingNotes || revealUntil != nil
         var covered = false
         if !wantsFront, let screen = NSScreen.main,
            let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
@@ -142,8 +143,26 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate, N
 
     private var frameCount = 0
     private var shownMinute = -1
+    // the pointer against the top edge, near the middle: out it comes, until the pointer leaves
+    private var revealUntil: Date?
+    private func checkEdge() {
+        guard let screen = NSScreen.main else { return }
+        let m = NSEvent.mouseLocation
+        let atEdge = m.y >= screen.frame.maxY - 2 && abs(m.x - screen.frame.midX) < 180
+        let onIsland = revealUntil != nil && panel.frame.insetBy(dx: -24, dy: -24).contains(m)
+        if atEdge || onIsland {
+            let first = revealUntil == nil
+            revealUntil = Date().addingTimeInterval(0.6)
+            if first { updateLevel() }
+        } else if let until = revealUntil, Date() > until {
+            revealUntil = nil
+            updateLevel()
+        }
+    }
+
     private func onTick() {
         frameCount += 1
+        checkEdge()
         if frameCount % 10 == 0 {
             updateLevel()
             let m = Calendar.current.component(.minute, from: Date())
@@ -419,6 +438,31 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate, N
 
 final class IslandView: NSView {
     weak var controller: IslandController?
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL])
+    }
+    required init?(coder: NSCoder) { fatalError("not from a nib") }
+
+    // ------------------------------------------------------------------ a photo dropped on the island
+    private func droppedImage(_ info: NSDraggingInfo) -> URL? {
+        let urls = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL]
+        return urls?.first { (try? $0.resourceValues(forKeys: [.contentTypeKey]))?.contentType?.conforms(to: .image) == true }
+    }
+    override func draggingEntered(_ info: NSDraggingInfo) -> NSDragOperation { droppedImage(info) == nil ? [] : .copy }
+    override func performDragOperation(_ info: NSDraggingInfo) -> Bool {
+        guard let c = controller, let photos = c.launcher?.photos, let url = droppedImage(info) else { return false }
+        var slot = photos.slots.firstIndex { $0 == nil } ?? 0
+        if c.searching, c.launcher?.list == .photos {
+            let p = convert(info.draggingLocation, from: nil)
+            if let i = rows.firstIndex(where: { $0.contains(p) }) { slot = i + c.scroll }
+        }
+        guard photos.set(slot, from: url) else { return false }
+        c.updateResults()
+        c.showToast(icon: "cat", text: "Foto dipasang di bingkai \(slot + 1)", seconds: 3)
+        return true
+    }
     var toast: (String, String)?
     var autoExpand = false
     var peek = false
@@ -625,6 +669,16 @@ final class IslandView: NSView {
         }
         text("baris baru = poin baru  ·  “x ” = selesai  ·  “# ” = judul  ·  esc selesai", Ink.font(11, weight: .medium), sc.inkSoft,
              at: CGPoint(x: r.minX, y: bounds.height - pad - 24))
+    }
+
+    private func photoIcon(_ ctx: CGContext, _ c: CGPoint, _ sc: Scheme) {
+        // a little framed picture: sky, a hill, a sun
+        let b = CGRect(x: c.x - 9, y: c.y - 8, width: 18, height: 15)
+        let pts = [CGPoint(x: b.minX, y: b.minY), CGPoint(x: b.maxX, y: b.minY), CGPoint(x: b.maxX, y: b.maxY), CGPoint(x: b.minX, y: b.maxY)]
+        Ink.fill(pts, Theme.cream, in: ctx)
+        Ink.fill([CGPoint(x: b.minX + 2, y: b.maxY - 2), CGPoint(x: b.midX - 1, y: b.midY + 0.5), CGPoint(x: b.maxX - 2, y: b.maxY - 2)], Theme.olive, in: ctx)
+        ctx.setFillColor(Theme.mutedRed.cgColor); ctx.fillEllipse(in: CGRect(x: b.maxX - 7, y: b.minY + 2.5, width: 4, height: 4))
+        Ink.stroke(pts + [pts[0]], width: 1.6, color: sc.ink, seed: 211, taper: 0, in: ctx)
     }
 
     private func chalkboardIcon(_ ctx: CGContext, _ c: CGPoint, _ sc: Scheme) {
@@ -903,6 +957,7 @@ final class IslandView: NSView {
         case .search: magnifier(ctx, c, sc)
         case .star: star(ctx, c, sc)
         case .notes: chalkboardIcon(ctx, c, sc)
+        case .photo: photoIcon(ctx, c, sc)
         case .stop:
             let b = CGRect(x: c.x - 6, y: c.y - 6, width: 12, height: 12)
             let pts = [CGPoint(x: b.minX, y: b.minY), CGPoint(x: b.maxX, y: b.minY), CGPoint(x: b.maxX, y: b.maxY), CGPoint(x: b.minX, y: b.maxY)]

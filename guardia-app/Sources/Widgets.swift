@@ -37,7 +37,8 @@ final class Widgets {
         for (k, v) in state {
             switch k {
             case "notes": d[k] = ((v as? String) ?? "").split(separator: "\n").count
-            case "github": d[k] = (v as? [String: Any])?["streak"] ?? "none"
+            case "github": d[k] = (v as? [String: Any])?["total"] ?? "none"
+            case "photos": d[k] = ((v as? [Any]) ?? []).filter { $0 is String }.count
             default: d[k] = v
             }
         }
@@ -93,8 +94,9 @@ final class ClaudeSessions {
 }
 
 // ------------------------------------------------------------------ GitHub
-// The contribution calendar of the account `gh` is logged in to: the streak (days in a row with
-// a contribution; today still counts as "not yet" until it ends) and the last fifteen weeks.
+// The last thirteen weeks of the contribution calendar of the account `gh` is logged in to, with
+// GitHub's own levels (0 none … 4 most), as the green squares on github.com. Private repositories
+// count only when "Include private contributions on my profile" is on in GitHub's settings.
 final class GitHubStreak {
     var onChange: (([String: Any]?) -> Void)?
     private var timer: Timer?
@@ -115,7 +117,8 @@ final class GitHubStreak {
         }
     }
 
-    private static let query = "query{viewer{contributionsCollection{contributionCalendar{weeks{contributionDays{date contributionCount}}}}}}"
+    private static let query = "query{viewer{contributionsCollection{contributionCalendar{weeks{firstDay contributionDays{contributionCount contributionLevel}}}}}}"
+    private static let levels = ["NONE": 0, "FIRST_QUARTILE": 1, "SECOND_QUARTILE": 2, "THIRD_QUARTILE": 3, "FOURTH_QUARTILE": 4]
 
     static func load() -> [String: Any]? {
         guard let gh else { return nil }
@@ -132,15 +135,15 @@ final class GitHubStreak {
               let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let weeks = ((((j["data"] as? [String: Any])?["viewer"] as? [String: Any])?["contributionsCollection"] as? [String: Any])?["contributionCalendar"] as? [String: Any])?["weeks"] as? [[String: Any]]
         else { return nil }
-        let days: [[Int]] = weeks.map { w in ((w["contributionDays"] as? [[String: Any]]) ?? []).map { ($0["contributionCount"] as? Int) ?? 0 } }
-        let flat = days.flatMap { $0 }
-        var streak = 0
-        for (i, n) in flat.reversed().enumerated() {
-            if n > 0 { streak += 1 } else if i == 0 { continue } else { break }
+        var total = 0
+        // weeks run Sunday to Saturday; the current one stops at today: the rest are -1
+        let recent: [[String: Any]] = weeks.suffix(13).map { w in
+            let days = (w["contributionDays"] as? [[String: Any]]) ?? []
+            total += days.reduce(0) { $0 + (($1["contributionCount"] as? Int) ?? 0) }
+            let lv = days.map { levels[($0["contributionLevel"] as? String) ?? ""] ?? 0 }
+            return ["start": (w["firstDay"] as? String) ?? "", "days": lv + Array(repeating: -1, count: max(0, 7 - lv.count))]
         }
-        // weeks run Sunday to Saturday; the current one stops at today: pad the rest with -1
-        let recent = days.suffix(15).map { $0 + Array(repeating: -1, count: max(0, 7 - $0.count)) }
-        return ["streak": streak, "today": flat.last ?? 0, "weeks": Array(recent)]
+        return ["weeks": recent, "total": total]
     }
 }
 

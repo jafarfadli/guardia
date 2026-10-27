@@ -70,16 +70,17 @@ def render_settings(scale):
 
 
 def camera():
+    k = core.CAMERA
     cam = bpy.data.cameras.new('KamarCam')
     cam.sensor_fit = 'HORIZONTAL'
-    cam.angle = math.radians(72)
-    cam.shift_y = -0.09 * 1800 / 2880
+    cam.angle = math.radians(k['fov'])
+    cam.shift_y = k['shift_y']
     cam.clip_start = 0.05
     cam.clip_end = 120
     ob = bpy.data.objects.new('KamarCam', cam)
     bpy.context.scene.collection.objects.link(ob)
-    ob.location = (3.7, -0.6, 1.5)
-    ob.rotation_euler = (math.radians(90), 0, math.radians(17))
+    ob.location = k['loc']
+    ob.rotation_euler = (math.radians(90), 0, math.radians(k['yaw']))
     bpy.context.scene.camera = ob
     return ob
 

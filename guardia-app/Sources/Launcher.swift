@@ -5,7 +5,7 @@ import AppKit
 // in ~/Koding (or a name for a new one), minutes, or a clock time. Catatan opens the notes page.
 // Typing at the top level also finds projects, songs and any row by name.
 struct Command {
-    enum Icon { case terminal, code, music, next, prev, folder, timer, alarm, focus, cat, search, star, stop, home, notes }
+    enum Icon { case terminal, code, music, next, prev, folder, timer, alarm, focus, cat, search, star, stop, home, notes, photo }
     var title: String
     var subtitle: String = ""
     var icon: Icon
@@ -18,12 +18,13 @@ struct Command {
 }
 
 final class Launcher {
-    enum List { case root, claude, code, newFolder, timer, alarm, focus }
+    enum List { case root, claude, code, newFolder, photos, timer, alarm, focus }
     private(set) var list: List = .root
     var fill: ((String) -> Void)?
     var onList: ((List) -> Void)?
     var notes: Notes?
     var openNotes: (() -> Void)?
+    var photos: Photos?
 
     private let music: NowPlaying
     private let timer: FocusTimer
@@ -47,6 +48,7 @@ final class Launcher {
         case .claude: return ("Claude Code", .terminal)
         case .code: return ("VS Code", .code)
         case .newFolder: return ("Folder baru", .folder)
+        case .photos: return ("Rak foto", .photo)
         case .timer: return ("Timer", .timer)
         case .alarm: return ("Alarm", .alarm)
         case .focus: return ("Mode fokus", .focus)
@@ -57,6 +59,7 @@ final class Launcher {
         case .root: return "cari: claude, code, lagu, timer, alarm, fokus…"
         case .claude, .code: return "pilih folder di Koding…"
         case .newFolder: return "nama folder baru di Koding…"
+        case .photos: return "pilih bingkai…"
         case .timer: return "berapa menit? misal 10 atau 10 masak"
         case .alarm: return "jam berapa? misal 6.30 atau 7.30 bangun"
         case .focus: return "berapa menit? misal 25"
@@ -68,6 +71,7 @@ final class Launcher {
         case .claude: return "↵ buka terminal  ·  esc kembali"
         case .code: return "↵ buka di VS Code  ·  ⌘↵ Claude Code  ·  esc kembali"
         case .newFolder: return "↵ buat lalu buka di VS Code  ·  ⌘↵ buat lalu Claude Code  ·  esc kembali"
+        case .photos: return "↵ pilih foto  ·  ⌘↵ kembalikan gambarnya  ·  atau seret foto ke island"
         case .timer, .alarm, .focus: return "↵ mulai  ·  esc kembali"
         }
     }
@@ -80,6 +84,7 @@ final class Launcher {
         case .claude: return filter(folderRows(claude: true), q)
         case .code: return filter(folderRows(claude: false), q)
         case .newFolder: return newFolderRows(text)
+        case .photos: return filter(photoRows(), q)
         case .timer: return timerRows(q)
         case .alarm: return alarmRows(q)
         case .focus: return focusRows(q)
@@ -123,6 +128,11 @@ final class Launcher {
         let first = notes?.text.split(separator: "\n").first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
         rows.append(Command(title: "Catatan", subtitle: first.isEmpty ? "tulis poin, muncul di papan tulis kamar" : first, icon: .notes,
                             keywords: "catatan notes note todo tulis papan tulis daftar", boost: q.isEmpty ? 6.5 : 0) { [weak self] in self?.openNotes?() })
+        if let photos {
+            let n = photos.slots.compactMap { $0 }.count
+            rows.append(Command(title: "Rak foto", subtitle: n == 0 ? "pasang fotomu di rak kamar" : "\(n) dari \(Photos.count) bingkai berisi fotomu", icon: .photo,
+                                keywords: "rak foto bingkai gambar photo frame", boost: q.isEmpty ? 5.5 : 0, keepOpen: true) { [weak self] in self?.enter(.photos) })
+        }
         rows.append(Command(title: "VS Code", subtitle: "pilih folder di Koding untuk dibuka", icon: .code,
                             keywords: "vscode visual studio code editor project proyek buka open", boost: q.isEmpty ? 6 : 0, keepOpen: true) { [weak self] in self?.enter(.code) })
         rows.append(Command(title: "Timer", subtitle: "hitung mundur dalam menit", icon: .timer,
@@ -200,6 +210,16 @@ final class Launcher {
             }
         }
         return rows
+    }
+
+    private func photoRows() -> [Command] {
+        guard let photos else { return [] }
+        return (0..<Photos.count).map { i in
+            let slot = photos.slots[i]
+            return Command(title: "Bingkai \(i + 1) · \(Photos.places[i])", subtitle: slot?.name ?? "gambar bawaan · pilih foto", icon: .photo,
+                           keywords: "bingkai foto \(i + 1)", hint: slot == nil ? "" : "⌘↵ hapus",
+                           alt: slot == nil ? nil : { [weak photos] in photos?.clear(i) }) { [weak photos] in photos?.choose(i) }
+        }
     }
 
     private func newFolderRows(_ raw: String) -> [Command] {

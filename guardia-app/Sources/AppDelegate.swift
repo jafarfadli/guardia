@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let wallpaper = WallpaperController()
@@ -14,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // what the room shows: notes, GitHub, Claude's sessions, batteries, the Mac's load, weather
     let widgets = Widgets()
     let notes = Notes()
+    let photos = Photos()
     let sessions = ClaudeSessions()
     let github = GitHubStreak()
     let load = SystemLoad()
@@ -21,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let weather = Weather()
     lazy var launcher = Launcher(music: music, timer: focus, alarms: alarms, focus: focusGuard, pet: pet)
     private var status: NSStatusItem!
+    private var searchKey: Hotkey?
     private var iconCheck: Timer?
     private let prefs = UserDefaults.standard
 
@@ -42,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             island.launcher = launcher
             island.notes = notes
             launcher.notes = notes
+            launcher.photos = photos
             Snapshot.run(into: CommandLine.arguments[i + 1], delegate: self)
             return
         }
@@ -56,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         island.notes = notes
         launcher.notes = notes
         launcher.openNotes = { [weak self] in self?.island.openNotes() }
+        launcher.photos = photos
         startWidgets()
         launcher.fill = { [weak self] t in self?.island.fill(t) }
         island.actions = (
@@ -81,6 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if islandOn { island.start() }
         if petOn { pet.start() }
+        // ⌃Space opens (and closes) the island's search from anywhere, full-screen apps too
+        searchKey = Hotkey(keyCode: kVK_Space, modifiers: controlKey, id: 1) { [weak self] in
+            guard let self else { return }
+            if self.island.searching { self.island.closeSearch() } else { self.openSearch() }
+        }
 
         var lastArt = 0
         music.onChange = { [weak self] t, isNew in
@@ -135,6 +145,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         widgets.wallpaper = wallpaper
         notes.onChange = { [weak self] t in self?.widgets.set("notes", t) }
         widgets.set("notes", notes.text)
+        let frames = { (urls: [String?]) -> [Any] in urls.map { $0 ?? NSNull() } }
+        photos.onChange = { [weak self] urls in self?.widgets.set("photos", frames(urls)) }
+        widgets.set("photos", frames(photos.urls))
         sessions.onChange = { [weak self] list in self?.widgets.set("sessions", list.map { ["name": $0.name, "running": $0.running] }) }
         sessions.start()
         github.onChange = { [weak self] card in self?.widgets.set("github", card) }
@@ -213,7 +226,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let on { i.state = on ? .on : .off }
             return i
         }
-        m.addItem(item("Cari…", #selector(openSearch)))
+        let search = item("Cari…", #selector(openSearch))
+        search.keyEquivalent = " "; search.keyEquivalentModifierMask = [.control] // shown only: the hot key does the work
+        m.addItem(search)
         m.addItem(.separator())
         m.addItem(item("Mode fokus 25 menit", #selector(startFocus(_:)), 25))
         m.addItem(item("Mode fokus 50 menit", #selector(startFocus(_:)), 50))
@@ -257,7 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let s: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "pet": pet.debugState, "wallpaper": wallpaper.debugState,
                                 "island": ["running": island.running, "searching": island.searching, "notes": island.editingNotes], "folders": folderIcons.debugState,
                                 "focus": focusGuard.on, "timer": focus.running, "alarms": alarms.list.count,
-                                "widgets": widgets.debugState, "load": load.debug, "weather": weather.debug]
+                                "widgets": widgets.debugState, "load": load.debug, "weather": weather.debug, "hotkey": searchKey?.registered ?? false]
         if let d = try? JSONSerialization.data(withJSONObject: s, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: dir.appendingPathComponent("status.json")) }
     }
     @objc private func quit() { notes.flush(); NSApp.terminate(nil) }
