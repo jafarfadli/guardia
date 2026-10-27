@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Ikon Guardia</title>
+<style>
+  @font-face { font-family: "Shantell Sans"; src: url(../wallpaper/fonts/ShantellSans-latin.woff2) format("woff2"); font-weight: 300 800; }
+  @font-face { font-family: "Alfa Slab One"; src: url(../wallpaper/fonts/AlfaSlabOne-latin.woff2) format("woff2"); }
+  body { margin: 0; padding: 24px 28px; background: #3b2c22; color: #EFE5CF; font: 600 15px "Shantell Sans", system-ui; }
+  h2 { font-size: 18px; margin: 14px 0 8px; letter-spacing: 0.02em; }
+  .grid { display: flex; flex-wrap: wrap; gap: 14px 18px; }
+  figure { margin: 0; width: 132px; text-align: center; }
+  figure canvas { width: 132px; height: 132px; display: block; }
+  figcaption { font-size: 12.5px; opacity: 0.8; margin-top: 2px; }
+  .dock { display: inline-flex; gap: 5px; padding: 7px 10px; margin-top: 18px; border-radius: 16px; background: rgba(240, 232, 214, 0.25); flex-wrap: wrap; max-width: 1400px; }
+  .dock canvas { width: 46px; height: 46px; }
+  .dock i { width: 14px; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script type="module">
+import { ICONS } from './emblems.js';
+await Promise.all([document.fonts.load('800 20px "Shantell Sans"'), document.fonts.load('20px "Alfa Slab One"')]);
+const S = 1024;
+const out = document.getElementById('out');
+const draw = (it) => { const c = document.createElement('canvas'); c.width = S; c.height = S; it.draw(c.getContext('2d'), S); return c; };
+const groups = [['sosial', 'Sosial'], ['kerja', 'Kerja & kuliah'], ['hiburan', 'Hiburan'], [null, 'Guardia']];
+const dock = document.createElement('div'); dock.className = 'dock';
+for (const [g, title] of groups) {
+  const h = document.createElement('h2'); h.textContent = title; out.appendChild(h);
+  const grid = document.createElement('div'); grid.className = 'grid'; out.appendChild(grid);
+  for (const it of ICONS.filter((x) => x.group === g)) {
+    const f = document.createElement('figure');
+    f.appendChild(draw(it));
+    const cap = document.createElement('figcaption'); cap.textContent = it.name; f.appendChild(cap);
+    grid.appendChild(f);
+    dock.appendChild(draw(it));
+  }
+  dock.appendChild(document.createElement('i'));
+}
+out.appendChild(dock);
+// for scripts/render-icons.mjs: every icon as a 1024 PNG
+window.__icons = Object.fromEntries(ICONS.map((it) => [it.id, draw(it).toDataURL('image/png')]));
+window.__guardia = { ready: true, light: {}, ms: 0 };
+</script>
+</body>
+</html>

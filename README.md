@@ -11,6 +11,7 @@ Desktop Mac ini sekarang adalah satu ruangan yang digambar seperti **komik yang 
 | Dynamic island | Tab kertas di tengah atas: jam dan baterai, dengan lagu atau timer di tengahnya. Klik untuk membuka menu dan pencarian: Claude Code, VS Code, Spotify, Timer, Alarm, Mode fokus | `guardia-app/Sources/Island.swift`, `Launcher.swift` |
 | Border jendela | Garis tinta di jendela aktif, garis pudar di jendela lain (JankyBorders) | `dotfiles/borders/` |
 | Tema app | VS Code (Kertas / Kertas Malam), Ghostty, Spotify (Spicetify), Chrome | `dotfiles/` |
+| Ikon app | 29 app (WhatsApp, LINE, Telegram, Discord, Office, VS Code, Chrome, Unity, Blender, Spotify, Roblox, dan lainnya) digambar ulang sebagai kartu kertas bertinta; Dock dikelompokkan: sistem · sosial · kerja · hiburan | `icons/`, `scripts/app-icons.sh` |
 
 Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tokens.json).
 
@@ -62,6 +63,17 @@ open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json
   node scripts/preview.mjs --times 07:30,16:30,21:00                                                                  # lihat hasil akhirnya di build/preview/
   ```
 - **Maestro**: `pet/poses.js`, lalu `node scripts/render-assets.mjs`.
+
+## Ikon app
+
+```sh
+./scripts/app-icons.sh apply     # gambar dan pasang ikon, rapikan Dock per kelompok
+./scripts/app-icons.sh restore   # ikon asli dan urutan Dock lama kembali
+```
+- Jalankan dari Ghostty. App milik sistem (dari App Store: WhatsApp, LINE, Telegram, Office, CapCut, Jump Desktop, plus Tailscale dan Zoom) meminta password Mac sekali.
+- Kalau macOS bilang Ghostty *"was prevented from modifying apps"*, nyalakan Ghostty di System Settings → Privacy & Security → App Management (jendelanya dibuka otomatis), lalu jalankan lagi.
+- App yang update sendiri bisa kembali ke ikon aslinya. Guardia memberi tahu lewat island, dan baris *Pasang ulang ikon app* di pencarian island menjalankan perintah ini lagi.
+- Gambarnya ada di `icons/emblems.js` (satu fungsi per app). Ubah, lalu jalankan `apply` lagi.
 
 ## Tema yang perlu satu langkah manual
 

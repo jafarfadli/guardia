@@ -130,6 +130,14 @@ final class Launcher {
                                 hint: "⌘↵ hapus", alt: { [weak self] in self?.favorites.remove(f.uri) }) { [weak self] in self?.music.play(uri: f.uri) })
         }
         rows.append(Command(title: "Panggil Maestro", icon: .cat, keywords: "kucing cat maestro panggil sini") { [weak self] in self?.pet.comeHere() })
+        // app icons: offered up front when an update put an original icon back
+        let lost = AppIcons.missing()
+        if let repo = AppIcons.repo {
+            rows.append(Command(title: "Pasang ulang ikon app", subtitle: lost.isEmpty ? "ikon kertas untuk app-app kamu" : "\(lost.count) app kembali ke ikon asli setelah update",
+                                icon: .star, keywords: "ikon icon app pasang ulang dock", boost: q.isEmpty && !lost.isEmpty ? 8 : 0) {
+                Projects.terminal(in: repo, run: "./scripts/app-icons.sh apply")
+            })
+        }
 
         // projects by name while typing; "claude <name>" goes straight to a terminal
         let projects = Projects.all()

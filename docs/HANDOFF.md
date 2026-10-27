@@ -1,6 +1,6 @@
 # Handoff — Guardia desktop
 
-Read this first if you are picking up the work in a new session. Last updated: 2026-10-27. Revision rounds 2–6 have shipped (round 5 renamed Kamar → Guardia and si Oren → Maestro). Waiting on the user's feedback.
+Read this first if you are picking up the work in a new session. Last updated: 2026-10-27. Revision rounds 2–7 have shipped (round 7: app icons and the grouped Dock). Waiting on the user's feedback.
 
 ## What the user wants
 
@@ -200,6 +200,32 @@ The user asked:
 
    Now the mottling is isotropic (`fbm(px * 0.016)`), the blue fibres are gone, and the grain uses whole 2 px cells. Intentional lines remain: window-frame stripes in the afternoon beam, hatching in deep shade, and the floor planks.
 5. **Answered: custom folder and app icons.** Possible for folders and third-party apps (`NSWorkspace.setIcon`), but not for Apple's system apps (sealed system volume), and app updates may reset them. Offered to draw a set in the room's ink style; waiting for the user's list.
+
+## Revision round 7 (done, 2026-10-27): app icons and the Dock
+
+The user wanted their everyday apps' icons in the room's style. They chose style **A · Kartu cetak** from a 3-style sample: a paper squircle card with a stepped shadow and inked rim, the emblem redrawn in ink with one muted brand colour. They also asked for all the suggested extras and for the Dock to be grouped.
+
+- `icons/glyphs.js` holds the primitives: squircle card (macOS grid, 824 px card on 1024), `shaded`, `rim`, `hatching`, `circle`, `arc`.
+- `icons/emblems.js` has one function per app and the `ICONS` registry (id, name, path with `*` for versioned apps, Dock group, draw).
+  - 29 apps:
+    - sosial: WhatsApp, LINE, Telegram, Discord;
+    - kerja: Chrome, VS Code, Claude, Ghostty, GitHub Desktop, Word, Excel, PowerPoint, Figma, Unity Hub, the Unity Editor, Blender, CapCut, Zoom, Jump Desktop, Tailscale, MATLAB, Arduino IDE, LTspice, Logisim-evolution;
+    - hiburan: Spotify, Roblox, Roblox Studio, Steam, VLC.
+  - Plus Guardia's own icon (Maestro's face), which ships in the bundle as `guardia-app/Resources/AppIcon.icns` (`CFBundleIconFile`).
+- Pages and scripts:
+  - `icons/sheet.html` previews every icon and hands them to `scripts/render-icons.mjs`.
+  - `render-icons.mjs` writes 1024 PNGs and `manifest.json` (installed apps only, with `repo`) to `~/.guardia/icons`, and builds `AppIcon.icns` with iconutil.
+- **Applying needs the user's terminal.**
+  - `Guardia --set-icons <manifest>` and `--restore-icons` use `NSWorkspace.setIcon`.
+  - macOS App Management blocks this from any process not allowed in Privacy & Security → App Management. A test from this agent's session failed ("gagal vlc"); the user may have seen a "Code was prevented from modifying apps" notice from that test.
+  - `scripts/app-icons.sh apply|restore` splits the manifest by owner. The user's apps run without sudo; root-owned apps (App Store, Tailscale, Zoom, LTspice) run with sudo, so updaters never meet root-owned files inside user-owned bundles. On failure it opens the App Management pane.
+  - Successful ids are recorded as `applied-*.json` beside the manifest. `AppIcons.missing()` only watches those, so a fresh install with no icons applied yet doesn't nag.
+- **Reminders:** 20 s after launch and every 6 h, Guardia toasts if an update undid icons. The island search has "Pasang ulang ikon app", which opens Ghostty in the repo running `./scripts/app-icons.sh apply` via `Projects.terminal(in:run:)`, the generalised Claude launcher.
+- **Dock** (`scripts/dock.py apply|restore`):
+  - The order is system apps (kept in place), sosial, kerja, hiburan, then other apps, with small spacers between.
+  - Telegram, Spotify and Roblox were added.
+  - The original `persistent-apps` is backed up once to `~/.guardia/backup/dock-persistent-apps.plist`.
+  - Already applied on the user's Mac: the Dock was grouped; the icons were not yet (waiting for the user to run the command).
 
 ## Tools and gotchas
 

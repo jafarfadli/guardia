@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let ringer = Ringer()
     lazy var launcher = Launcher(music: music, timer: focus, alarms: alarms, focus: focusGuard, pet: pet)
     private var status: NSStatusItem!
+    private var iconCheck: Timer?
     private let prefs = UserDefaults.standard
 
     private var wallpaperOn: Bool { get { prefs.object(forKey: "wallpaper") as? Bool ?? true } set { prefs.set(newValue, forKey: "wallpaper") } }
@@ -25,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             exit(0)
         }
         if args.contains("--restore-wallpaper") { DesktopPicture.restore(); exit(0) }
+        if let i = args.firstIndex(of: "--set-icons"), i + 1 < args.count { exit(AppIcons.apply(args[i + 1]) ? 0 : 1) }
+        if let i = args.firstIndex(of: "--restore-icons"), i + 1 < args.count { exit(AppIcons.restore(args[i + 1]) ? 0 : 1) }
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
             island.timer = focus
             island.launcher = launcher
@@ -95,6 +98,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.ring(title: "Timer selesai", subtitle: name, action: ("tambah 5 menit", { [weak self] in self?.focus.start(seconds: 300, kind: .timer, label: name == "timer" ? "" : name) }))
             }
         }
+
+        // app updates bring original icons back: say so now and then (the island's search fixes it)
+        let checkIcons = { [weak self] in
+            let lost = AppIcons.missing()
+            guard let self, !lost.isEmpty else { return }
+            self.island.showToast(icon: "cat", text: "\(lost.count) ikon app kembali ke asli · klik island → Pasang ulang ikon", seconds: 8)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: checkIcons)
+        iconCheck = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in checkIcons() }
 
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         status.button?.image = AppDelegate.catIcon()

@@ -64,16 +64,21 @@ enum Projects {
     // A new Ghostty window running `claude` in the folder. Ghostty 1.3 takes the folder and the
     // first input from AppleScript; when it isn't running yet, its first window is used instead
     // of opening a second one.
-    static func claude(in dir: URL) {
-        let path = dir.path.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+    static func claude(in dir: URL) { terminal(in: dir, run: "claude") }
+
+    /// A new Ghostty window in `dir` that runs `cmd` (the shell stays open afterwards).
+    static func terminal(in dir: URL, run cmd: String) {
+        let esc = { (s: String) in s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") }
+        let path = esc(dir.path), command = esc(cmd)
         let src = """
         set dir to "\(path)"
+        set cmd to "\(command)"
         set wasRunning to application "Ghostty" is running
         tell application "Ghostty"
             if wasRunning then
                 set cfg to new surface configuration
                 set initial working directory of cfg to dir
-                set initial input of cfg to "claude" & linefeed
+                set initial input of cfg to cmd & linefeed
                 new window with configuration cfg
             else
                 activate
@@ -82,7 +87,7 @@ enum Projects {
                     delay 0.1
                 end repeat
                 set t to focused terminal of selected tab of front window
-                input text ("cd " & quoted form of dir & " && clear && claude") to t
+                input text ("cd " & quoted form of dir & " && clear && " & cmd) to t
                 send key "enter" to t
             end if
             activate
