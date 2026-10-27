@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Folder Guardia</title>
+<style>
+  @font-face { font-family: "Alfa Slab One"; src: url(../wallpaper/fonts/AlfaSlabOne-latin.woff2) format("woff2"); }
+  body { margin: 0; background: #3b2c22; }
+</style>
+</head>
+<body>
+<script type="module">
+// Guardia loads this page (inside its bundle) to draw the icon for a folder that was just made.
+import { drawFolder } from './folders.js';
+await document.fonts.load('20px "Alfa Slab One"');
+const S = 1024;
+window.renderFolders = (list) => Object.fromEntries(list.map((f) => {
+  const c = document.createElement('canvas'); c.width = S; c.height = S;
+  drawFolder(c.getContext('2d'), S, f);
+  return [f.id, c.toDataURL('image/png')];
+}));
+window.__ready = true;
+</script>
+</body>
+</html>

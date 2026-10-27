@@ -26,6 +26,9 @@ cp $here/Info.plist $app/Contents/Info.plist
 mkdir -p $app/Contents/Resources/wallpaper
 cp -R $root/wallpaper/index.html $root/wallpaper/src $root/wallpaper/fonts $root/wallpaper/frames $app/Contents/Resources/wallpaper/
 cp -R $here/Resources/pet $app/Contents/Resources/pet
+# the folder drawing, for icons Guardia puts on new folders by itself
+mkdir -p $app/Contents/Resources/icons
+cp $root/icons/folder.html $root/icons/folders.js $root/icons/glyphs.js $app/Contents/Resources/icons/
 [[ -f $here/Resources/AppIcon.icns ]] && cp $here/Resources/AppIcon.icns $app/Contents/Resources/
 codesign --force --sign - --timestamp=none $app >/dev/null
 echo "built $app"

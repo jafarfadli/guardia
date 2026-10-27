@@ -79,6 +79,8 @@ try {
   for (const [id, png] of Object.entries(pngs)) await writeFile(join(out, 'folders', `${id}.png`), Buffer.from(png.split(',')[1], 'base64'));
   await writeFile(join(out, 'folders.json'), JSON.stringify({ repo: root, apps: flist.map((f) => ({ id: f.id, name: f.name, app: f.path, png: join(out, 'folders', `${f.id}.png`) })) }, null, 2));
   console.log(`folder: ${flist.length}`);
+  // what Guardia watches to give new folders their icon as they are made
+  await writeFile(join(out, 'folder-watch.json'), JSON.stringify({ parents: conf.parents.map(tilde), skip: conf.skip }, null, 2));
 
   // Guardia's own icon, as an .icns in the app's resources
   const set = join(root, 'build/AppIcon.iconset');

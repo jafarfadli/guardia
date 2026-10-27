@@ -77,7 +77,7 @@ open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json
   - folder bawaan (Desktop, Documents, Downloads, Pictures, Movies, Music, Public, Applications, bin, Koding) diberi cap tinta;
   - folder lain di Koding, di Desktop, dan di folder rumah diberi stiker warna berisi inisialnya.
 
-  Ikon folder tersimpan sebagai file tersembunyi `Icon\r` di dalam folder. File itu sudah dimasukkan ke gitignore global, jadi tidak muncul di `git status`. Folder baru baru ikut berganti setelah `apply` dijalankan lagi.
+  Ikon folder tersimpan sebagai file tersembunyi `Icon\r` di dalam folder. File itu sudah dimasukkan ke gitignore global, jadi tidak muncul di `git status`. Folder baru di Koding, Desktop, dan folder rumah langsung mendapat ikonnya sendiri (Guardia mengawasinya), termasuk saat namanya diganti. Untuk Desktop, Guardia perlu izin sekali: *Guardia ingin mengakses folder Desktop* → **Izinkan**.
 - Gambarnya ada di `icons/emblems.js` (satu fungsi per app) dan `icons/folders.js`. Ubah, lalu jalankan `apply` lagi.
 
 ## Tema yang perlu satu langkah manual

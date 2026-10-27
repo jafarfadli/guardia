@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let alarms = Alarms()
     let focusGuard = FocusGuard()
     let ringer = Ringer()
+    let folderIcons = FolderIcons()
     lazy var launcher = Launcher(music: music, timer: focus, alarms: alarms, focus: focusGuard, pet: pet)
     private var status: NSStatusItem!
     private var iconCheck: Timer?
@@ -106,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.island.showToast(icon: "cat", text: "\(lost.count) ikon app kembali ke asli · klik island → Pasang ulang ikon", seconds: 8)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: checkIcons)
+        folderIcons.start()
         iconCheck = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in checkIcons() }
 
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -216,7 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".guardia")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let s: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "pet": pet.debugState, "wallpaper": wallpaper.debugState,
-                                "island": ["running": island.running, "searching": island.searching], "focus": focusGuard.on, "timer": focus.running,
+                                "island": ["running": island.running, "searching": island.searching], "folders": folderIcons.debugState, "focus": focusGuard.on, "timer": focus.running,
                                 "alarms": alarms.list.count]
         if let d = try? JSONSerialization.data(withJSONObject: s, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: dir.appendingPathComponent("status.json")) }
     }

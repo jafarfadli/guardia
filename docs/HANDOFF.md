@@ -232,6 +232,16 @@ The user wanted their everyday apps' icons in the room's style. They chose style
   - Every other folder in `~/Koding`, `~/Desktop` and `~` gets a coloured sticker with its initials (an all-caps acronym wins: "All About FRS" → FRS). The colour comes from a hash of the name.
   - `render-icons.mjs` writes `~/.guardia/icons/folders.json`. Folders need no sudo and no App Management, so they were applied from the agent session: 34 folders.
   - `app-icons.sh` adds `Icon\r` to the global git ignore (`~/.config/git/ignore`, written as `Icon\r\r\n`, because git strips one CR).
+- **New folders get their icon by themselves** (`FolderIcons.swift`).
+  - Guardia watches the parents in `~/.guardia/icons/folder-watch.json` (Koding, Desktop, home; written by render-icons.mjs) with `DispatchSource` directory watchers.
+  - After 1.5 s of quiet it lists any folder whose path isn't in `folders.json`, so a rename counts as new. Hidden folders, packages, symlinks and the stamped home folders are skipped.
+  - The sticker is drawn by the bundled `icons/folder.html` + `folders.js` in a short-lived WKWebView in an off-screen window, released 20 s after use. The result is put on with `setIcon` and appended to `folders.json`; entries whose path is gone are pruned.
+  - Tested: a new folder in Koding got its icon in about 4 s, and renaming it re-stickered it.
+  - **Gotcha:** the first touch of `~/Desktop` raises a privacy prompt and *blocks the calling thread until it is answered*. Doing it on the main thread froze Guardia (island and pet) once.
+    - All folder file work now runs off the main thread.
+    - Each parent is attached on its own, so the Desktop waiting doesn't hold up Koding or home.
+    - Refused parents are retried every minute.
+  - `guardia://status` shows `folders.watching` and `folders.refused`.
 - Guardia's own bundle icon was put in a grey frame by macOS 26 (old-style .icns), so install.sh also sets it as a custom icon (`~/.guardia/icons/self.json`).
 
 ## Tools and gotchas
