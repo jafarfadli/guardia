@@ -5,7 +5,7 @@ import AppKit
 final class PetController {
     // One sheet per animation; frames are picked with contentsRect so the sheet uploads once.
     struct Anim { let sheet: CGImage; let count: Int; let fps: Double; let loop: Bool }
-    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch, swipe }
+    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch, leap, swipe }
 
     private let panel: NSPanel
     private let view: PetView
@@ -28,6 +28,10 @@ final class PetController {
     private var last = CACurrentMediaTime()
     private var hiddenForFullScreen = false
     private var fullScreenClock: Double = 0
+    // focus mode: one leap from where he is onto a Chrome tab, a swipe up there, the fall back
+    private var pounce: (from: CGPoint, to: CGPoint, t0: Double, dur: Double)?
+    private var onHit: (() -> Void)?
+    private var swipingUp = false
     var size: CGSize { CGSize(width: cell.width * scale, height: cell.height * scale) }
 
     init() {
@@ -112,6 +116,7 @@ final class PetController {
         loop?.invalidate(); loop = nil
         watchdog?.invalidate(); watchdog = nil
         interval = 0
+        landHit()
         panel.orderOut(nil)
     }
 
@@ -122,7 +127,7 @@ final class PetController {
         let full = PetController.fullScreenInFront(on: screen)
         guard full != hiddenForFullScreen else { return }
         hiddenForFullScreen = full
-        if full { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+        if full { landHit(); panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
 
     static func fullScreenInFront(on screen: NSScreen) -> Bool {
@@ -188,6 +193,31 @@ final class PetController {
         set(.swipe, for: anims["swipe"].map { Double($0.count) / $0.fps } ?? 0.5)
     }
 
+    /// Leap onto `feet` (screen coordinates, the bottom of a Chrome tab), swipe, and call `hit`
+    /// as the paw lands; then he falls back to the floor. False when nobody would see it (he's
+    /// off, put away for a full-screen app, or the tab is on another screen): close it then.
+    func pounce(on feet: CGPoint, hit: @escaping () -> Void) -> Bool {
+        guard running, !hiddenForFullScreen, panel.isOnActiveSpace, onHit == nil,
+              screen.frame.insetBy(dx: 4, dy: 4).contains(feet), ![.dangle, .fall].contains(state) else { return false }
+        let to = CGPoint(x: feet.x - size.width / 2, y: feet.y - (cell.height - cellGround) * scale)
+        facing = to.x >= pos.x ? 1 : -1
+        // quick: a third of a second for a short hop, never much more than half a second
+        let dist = Double(hypot(to.x - pos.x, to.y - pos.y))
+        pounce = (pos, to, CACurrentMediaTime(), min(0.6, 0.28 + dist / 4000))
+        onHit = hit
+        swipingUp = false
+        set(.leap, for: 3)
+        schedule(1.0 / 40)
+        return true
+    }
+
+    // whatever interrupts the pounce, the tab still goes
+    private func landHit() {
+        let h = onHit
+        onHit = nil; pounce = nil
+        h?()
+    }
+
     // ------------------------------------------------------------------ state machine
     private func set(_ s: State, for seconds: Double) {
         state = s
@@ -201,6 +231,7 @@ final class PetController {
         case .purr: name = "purr"
         case .dangle, .fall: name = "dangle"
         case .stretch: name = "stretch"
+        case .leap: name = "leap"
         case .swipe: name = "swipe"
         }
         if name != anim { anim = name; frame = 0; frameClock = 0 }
@@ -250,16 +281,33 @@ final class PetController {
             pos.y += vy * CGFloat(dt)
             let g = groundOrigin()
             if pos.y <= g { pos.y = g; vy = 0; set(.idle, for: 3) }
+        case .leap:
+            guard let p = pounce else { vy = 0; set(.fall, for: 5); break }
+            let t = min(1, (now - p.t0) / p.dur)
+            let e = CGFloat(t * t * (3 - 2 * t))
+            pos.x = p.from.x + (p.to.x - p.from.x) * e
+            pos.y = p.from.y + (p.to.y - p.from.y) * e + CGFloat(sin(t * .pi)) * 60
+            frame = min(5, Int(t * 6))
+            if t >= 1 {
+                pos = p.to
+                swipingUp = true
+                set(.swipe, for: anims["swipe"].map { Double($0.count) / $0.fps } ?? 0.5)
+            }
         case .swipe:
-            if Date() > until { set(.idle, for: 3) }
+            if swipingUp, let p = pounce { pos = p.to }
+            // the paw lands on the swipe's fourth frame: that is when the tab closes
+            if swipingUp && frame >= 3 { landHit() }
+            if Date() > until {
+                if swipingUp { swipingUp = false; landHit(); vy = 60; set(.fall, for: 5) } else { set(.idle, for: 3) }
+            }
         }
-        if state != .dangle && state != .fall { pos.y = groundOrigin() }
-        pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound)
+        let aloft = [.dangle, .fall, .leap].contains(state) || swipingUp
+        if !aloft { pos.y = groundOrigin(); pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound) }
         fullScreenClock += dt
         if fullScreenClock > 2 { fullScreenClock = 0; checkFullScreen() }
 
         // animate (taps advance per key instead of by time)
-        if let a = anims[anim], state != .tap {
+        if let a = anims[anim], state != .tap, state != .leap {
             frameClock += dt
             let step = 1 / a.fps
             while frameClock >= step {
@@ -270,7 +318,7 @@ final class PetController {
         place()
         hitTest()
         // asleep, one tick per breathing frame is enough to notice the first key or mouse move
-        schedule([.walk, .dangle, .fall, .swipe].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
+        schedule(state == .leap ? 1.0 / 40 : [.walk, .dangle, .fall, .swipe].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
     }
 
     private func onKey() {
@@ -351,7 +399,7 @@ final class PetController {
     func mouseDown(at p: CGPoint) { grab = p; dragged = false }
     func mouseDragged() {
         guard grab != nil else { return }
-        if !dragged { dragged = true; set(.dangle, for: .infinity) }
+        if !dragged { dragged = true; swipingUp = false; landHit(); set(.dangle, for: .infinity) }
         let m = NSEvent.mouseLocation
         // held by the scruff: the top of the head stays under the cursor
         pos = CGPoint(x: m.x - size.width / 2, y: m.y - size.height * 0.9)

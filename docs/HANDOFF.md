@@ -189,7 +189,7 @@ The user asked:
    - The still is saved to `~/.guardia/still-<display>.png` and is used at launch when live is off; the fallback is the raw frame `f1530.webp`.
    - The same still also becomes the system desktop picture (`desktop-<time>.png`; a new name each time, because macOS caches by path).
    - `start(live:)` replaces start/stop: the room window is always there.
-3. **Focus mode closes the tab instantly.** `FocusGuard` polls every 1 s while Chrome is frontmost and closes a guarded front tab the moment it sees one. Maestro calls `swipeHere()` (an in-place paw swipe) and the island shows a toast. The visit removed:
+3. **Focus mode closes the tab instantly** (round 9 brought back a quick leap onto the tab; see below). `FocusGuard` polls every 1 s while Chrome is frontmost and closes a guarded front tab the moment it sees one. Maestro calls `swipeHere()` (an in-place paw swipe) and the island shows a toast. The visit removed:
    - from the pet: `dash`, `leap`, `perch`, `investigate`;
    - from the island: the countdown mode and "biarin";
    - from the sprites: `leap` and `perch`.
@@ -243,6 +243,24 @@ The user wanted their everyday apps' icons in the room's style. They chose style
     - Refused parents are retried every minute.
   - `guardia://status` shows `folders.watching` and `folders.refused`.
 - Guardia's own bundle icon was put in a grey frame by macOS 26 (old-style .icns), so install.sh also sets it as a custom icon (`~/.guardia/icons/self.json`).
+
+## Revision round 9 (done, 2026-10-27): Maestro pounces in focus mode
+
+The user asked that Maestro still leap onto the tab being closed, but shut it straight away (a very short delay). Round 6's instant close stays as the fallback.
+
+- `FocusGuard.check()` now also asks Chrome for the front window's bounds, the active tab index and the tab count. `feet(on:)` estimates the tab's bottom centre: tabs share the strip between 80 pt on the left (traffic lights) and 100 pt on the right, up to 240 pt each, and the strip's bottom is 38 pt below the window's top.
+- `PetController.pounce(on:hit:)`:
+  - Leaps there along an eased arc. It takes 0.28 s plus the distance / 4000, and at most 0.6 s.
+  - Then plays the swipe; the hit (the AppleScript close and the island toast) fires on swipe frame 4.
+  - He then falls back to the floor.
+  - The whole visit is about a second.
+- It returns false when he can't be seen doing it, and the tab is closed at once with `swipeHere()`. That happens when he is off, put away for a full-screen app, on another Space, being dragged or falling, or when the spot is off his screen.
+- The close can't be lost:
+  - `landHit()` runs it when a drag, `stop()` or a full-screen hide interrupts the pounce;
+  - FocusGuard also closes after 2 s;
+  - a once-flag makes sure it closes only once.
+- The `leap` pose is back in `pet/poses.js` (6 frames) and in the sprites.
+- Tested: in focus mode, opening youtube.com in Chrome put Maestro on the tab within about half a second. The tab closed and he fell back to the floor.
 
 ## Tools and gotchas
 

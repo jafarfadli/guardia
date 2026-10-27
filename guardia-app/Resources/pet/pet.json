@@ -41,6 +41,11 @@
       "fps": 9,
       "loop": false
     },
+    "leap": {
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
     "swipe": {
       "frames": 6,
       "fps": 12,

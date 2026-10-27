@@ -36,7 +36,7 @@ Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tok
 - Klik untuk mengelus (dia mendengkur). Seret untuk mengangkatnya, lalu lepas dan dia jatuh ke lantai.
 - Saat kamu mengetik, dia menepuk-nepuk. Kalau Mac tidak disentuh 2 menit, dia tidur, lalu bangun sambil meregang.
 - Menu kucing → *Panggil Maestro* membuatnya berjalan ke arah kursor.
-- **Mode fokus:** begitu tab Chrome yang sedang kamu lihat adalah Instagram, TikTok, YouTube, atau X, tab itu langsung ditutup. Maestro mencakar di tempatnya, dan island memberi tahu situs apa yang ditutup.
+- **Mode fokus:** begitu tab Chrome yang sedang kamu lihat adalah Instagram, TikTok, YouTube, atau X, Maestro melompat ke tab itu dan langsung mencakarnya sampai tertutup, kira-kira sedetik. Island memberi tahu situs apa yang ditutup. Kalau Maestro sedang tidak terlihat (dimatikan, atau Chrome dalam layar penuh), tabnya langsung ditutup tanpa lompatan.
 
 **Menu Guardia**: klik ikon kucing di menu bar macOS (gerakkan kursor ke tepi atas) untuk mode fokus, menyalakan atau mematikan Maestro dan island, atau keluar. *Wallpaper hidup* yang dimatikan tidak mengembalikan wallpaper lama: ruangan dibekukan menjadi gambar diam dari saat itu (di semua Space, dan juga jadi gambar layar kunci), dan memori untuk halaman hidupnya dilepas.
 
