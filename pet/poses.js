@@ -163,59 +163,7 @@ function dangle(i, n) {
   };
 }
 
-// Focus mode: a run-up, a leap onto the Chrome tab, a perch with a warning, and the swipe.
-function leap(i, n) {
-  // crouch → launch → stretched → tucked → reaching down to land
-  const K = [
-    { s: 0.0, by: 120, hy: 82, ff: [118, GROUND], bf: [80, GROUND] },
-    { s: 0.55, by: 112, hy: 68, ff: [140, 112], bf: [66, 140] },
-    { s: 1.0, by: 104, hy: 58, ff: [156, 90], bf: [52, 128] },
-    { s: 0.8, by: 102, hy: 60, ff: [150, 96], bf: [62, 120] },
-    { s: 0.45, by: 106, hy: 66, ff: [138, 120], bf: [74, 126] },
-    { s: 0.2, by: 112, hy: 74, ff: [128, 138], bf: [82, 136] },
-  ][Math.min(i, 5)];
-  const a = -0.38 * K.s;
-  return {
-    body: { x: 98, y: K.by, rx: 38 + 8 * K.s, ry: 23 - 3 * K.s, shape: 'bean', a },
-    head: { x: 140 + 6 * K.s, y: K.hy, r: 30, a: -0.1 - 0.12 * K.s },
-    ears: 1 - 0.5 * K.s,
-    legs: [
-      { hip: [80, K.by + 8], foot: [K.bf[0] - 4, K.bf[1] - 2], far: true },
-      { hip: [114, K.by + 4 - 8 * K.s], foot: [K.ff[0] - 6, K.ff[1] + 2], far: true },
-      { hip: [84, K.by + 10], foot: K.bf },
-      { hip: [118, K.by + 6 - 8 * K.s], foot: K.ff },
-    ],
-    tail: [[66, K.by + 2], [52, K.by + 2 - 4 * K.s], [40, K.by - 6 - 10 * K.s], [30 + 4 * K.s, K.by - 16 - 6 * K.s]],
-    eyes: 'open', look: [1, -0.5], mouth: K.s > 0.7 ? 'open' : undefined,
-  };
-}
-
-function bang(ctx, x, y, a) {
-  // an inked "!" with a mustard burst behind it
-  ctx.save();
-  ctx.translate(x, y); ctx.rotate(0.12);
-  ctx.globalAlpha = a;
-  ctx.fillStyle = '#E6B54A';
-  ctx.beginPath();
-  for (let k = 0; k < 16; k++) { const r = k % 2 ? 7 : 12, t = (k / 16) * Math.PI * 2; ctx.lineTo(Math.cos(t) * r, Math.sin(t) * r * 1.15); }
-  ctx.closePath(); ctx.fill();
-  ctx.lineWidth = 1.5; ctx.strokeStyle = COL.ink; ctx.stroke();
-  ctx.fillStyle = COL.ink;
-  ctx.font = '800 17px "Shantell Sans"';
-  ctx.textAlign = 'center';
-  ctx.fillText('!', 0, 6);
-  ctx.restore();
-}
-
-function perch(i, n) {
-  const ph = (i / n) * TAU;
-  return sit({
-    dy: 1, tilt: 0.1 + 0.03 * sin(ph), hx: 3, look: [0.25, 0.75], ears: 1, breathe: sin(ph),
-    tip: 9 * sin(ph * 2), eyes: i === 7 ? 'closed' : 'open',
-    extra: (ctx) => bang(ctx, 160, 34 + 2 * sin(ph * 2), 1),
-  });
-}
-
+// Focus mode closed a tab: a paw swipe where he sits.
 function swipe(i, n) {
   const paws = [[126, 112], [132, 94], [152, 116], [158, 136], [136, 132], [118, GROUND]];
   const p = paws[Math.min(i, 5)];
@@ -256,8 +204,6 @@ export const ANIMS = {
   sleep: { frames: 12, fps: 4, pose: sleep, loop: true },
   dangle: { frames: 8, fps: 8, pose: dangle, loop: true },
   stretch: { frames: 10, fps: 9, pose: stretch, loop: false },
-  leap: { frames: 6, fps: 12, pose: leap, loop: false },
-  perch: { frames: 12, fps: 6, pose: perch, loop: true },
   swipe: { frames: 6, fps: 12, pose: swipe, loop: false },
 };
 export const CELL = { w: 200, h: 160, groundY: 150 };

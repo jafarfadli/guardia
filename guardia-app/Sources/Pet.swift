@@ -5,7 +5,7 @@ import AppKit
 final class PetController {
     // One sheet per animation; frames are picked with contentsRect so the sheet uploads once.
     struct Anim { let sheet: CGImage; let count: Int; let fps: Double; let loop: Bool }
-    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch, dash, leap, perch, swipe }
+    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch, swipe }
 
     private let panel: NSPanel
     private let view: PetView
@@ -26,12 +26,8 @@ final class PetController {
     private var vy: CGFloat = 0
     private var loop: Timer?
     private var last = CACurrentMediaTime()
-    // a focus-mode visit to a Chrome tab: run under it, leap up, perch, maybe swipe
-    private var visitTo: CGPoint?
-    private var onPerched: (() -> Void)?
-    private var onPulledAway: (() -> Void)?
-    private var afterSwipe: (() -> Void)?
-    private var leap: (from: CGPoint, t0: Double, dur: Double) = (.zero, 0, 0.6)
+    private var hiddenForFullScreen = false
+    private var fullScreenClock: Double = 0
     var size: CGSize { CGSize(width: cell.width * scale, height: cell.height * scale) }
 
     init() {
@@ -40,7 +36,7 @@ final class PetController {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .floating
-        // every desktop, but not over apps in full screen
+        // every desktop; over an app in full screen he is put away (see checkFullScreen)
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
@@ -82,7 +78,9 @@ final class PetController {
         let g = groundOrigin()
         pos = CGPoint(x: (screen.visibleFrame.minX + screen.visibleFrame.maxX) / 2 + 160, y: g)
         place()
+        hiddenForFullScreen = false
         panel.orderFrontRegardless()
+        checkFullScreen()
         last = CACurrentMediaTime()
         interval = 0
         schedule(1.0 / 20)
@@ -94,7 +92,19 @@ final class PetController {
             self.schedule(1.0 / 10)
         }
         watchdog?.tolerance = 1
+        if !observingSpaces {
+            observingSpaces = true
+            let nc = NSWorkspace.shared.notificationCenter
+            for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
+                nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    self?.checkFullScreen()
+                    // the window list settles a moment after a space switch
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self?.checkFullScreen() }
+                }
+            }
+        }
     }
+    private var observingSpaces = false
 
     func stop() {
         guard running else { return }
@@ -102,13 +112,38 @@ final class PetController {
         loop?.invalidate(); loop = nil
         watchdog?.invalidate(); watchdog = nil
         interval = 0
-        visitTo = nil; onPerched = nil; onPulledAway = nil; afterSwipe = nil
         panel.orderOut(nil)
+    }
+
+    // A panel that doesn't activate its app still shows over full-screen apps, whatever its
+    // collection behaviour says. So: when the app in front fills the whole screen, put him away.
+    private func checkFullScreen() {
+        guard running else { return }
+        let full = PetController.fullScreenInFront(on: screen)
+        guard full != hiddenForFullScreen else { return }
+        hiddenForFullScreen = full
+        if full { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+    }
+
+    static func fullScreenInFront(on screen: NSScreen) -> Bool {
+        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+              let main = NSScreen.screens.first,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return false }
+        // window bounds are in top-left coordinates, measured from the main screen's top
+        let target = CGRect(x: screen.frame.minX, y: main.frame.maxY - screen.frame.maxY, width: screen.frame.width, height: screen.frame.height)
+        for w in list {
+            guard (w[kCGWindowOwnerPID as String] as? Int32) == app.processIdentifier, (w[kCGWindowLayer as String] as? Int) == 0,
+                  let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { continue }
+            let r = CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
+            if abs(r.minX - target.minX) < 2 && abs(r.minY - target.minY) < 2 && abs(r.width - target.width) < 2 && abs(r.height - target.height) < 2 { return true }
+        }
+        return false
     }
 
     /// For `guardia://status`: what Maestro is doing and when his loop last ticked.
     var debugState: [String: Any] {
-        ["running": running, "state": "\(state)", "x": Double(pos.x), "y": Double(pos.y), "lastTickAgo": CACurrentMediaTime() - last, "onActiveSpace": panel.isOnActiveSpace]
+        ["running": running, "state": "\(state)", "x": Double(pos.x), "y": Double(pos.y), "lastTickAgo": CACurrentMediaTime() - last,
+         "hiddenForFullScreen": hiddenForFullScreen, "visible": panel.isVisible]
     }
 
     // 20 Hz while moving, 10 Hz otherwise (still quick enough to catch every keypress)
@@ -123,12 +158,21 @@ final class PetController {
     }
 
     private var screen: NSScreen { NSScreen.screens.first ?? NSScreen.main! }
-    private func groundOrigin() -> CGFloat {
+    // asking NSScreen for its frames is a window-server round trip, so the floor is kept and
+    // refreshed every couple of seconds (the Dock can move or hide)
+    private var floorCache: (ground: CGFloat, bounds: ClosedRange<CGFloat>, at: Double)?
+    private func floorInfo() -> (ground: CGFloat, bounds: ClosedRange<CGFloat>) {
+        let now = CACurrentMediaTime()
+        if let f = floorCache, now - f.at < 2 { return (f.ground, f.bounds) }
         let s = screen
         let floor = s.visibleFrame.minY > s.frame.minY + 8 ? s.visibleFrame.minY : s.frame.minY + 2
-        return floor - (cell.height - cellGround) * scale
+        let g = floor - (cell.height - cellGround) * scale
+        let b = (s.frame.minX + 8)...max(s.frame.minX + 9, s.frame.maxX - size.width - 8)
+        floorCache = (g, b, now)
+        return (g, b)
     }
-    private var bounds: ClosedRange<CGFloat> { (screen.frame.minX + 8)...(screen.frame.maxX - size.width - 8) }
+    private func groundOrigin() -> CGFloat { floorInfo().ground }
+    private var bounds: ClosedRange<CGFloat> { floorInfo().bounds }
 
     // ------------------------------------------------------------------ public nudges
     func celebrate() { if state != .dangle { set(.purr, for: 4) } }
@@ -138,45 +182,10 @@ final class PetController {
         set(.walk, for: 30)
     }
 
-    // ------------------------------------------------------------------ focus-mode visits
-    var isPerched: Bool { state == .perch }
-
-    func canReach(_ feet: CGPoint) -> Bool { running && panel.isOnActiveSpace && screen.frame.insetBy(dx: 4, dy: 4).contains(feet) }
-
-    /// Run along the floor until under `feet`, leap up and perch there (feet in screen coordinates).
-    func investigate(_ feet: CGPoint, perched: @escaping () -> Void, pulledAway: @escaping () -> Void) {
-        let origin = CGPoint(x: feet.x - size.width / 2, y: feet.y - (cell.height - cellGround) * scale)
-        visitTo = origin
-        onPerched = perched
-        onPulledAway = pulledAway
-        targetX = min(max(origin.x, bounds.lowerBound), bounds.upperBound)
-        if [.dangle, .fall].contains(state) { pos.y = groundOrigin() }
-        if abs(targetX - pos.x) > 30 { set(.dash, for: 8) } else { beginLeap() }
-    }
-
-    private func beginLeap() {
-        guard let to = visitTo else { set(.idle, for: 3); return }
-        facing = to.x >= pos.x ? 1 : -1
-        let dist = hypot(to.x - pos.x, to.y - pos.y)
-        leap = (pos, CACurrentMediaTime(), 0.45 + Double(dist) / 2600)
-        set(.leap, for: leap.dur + 2)
-    }
-
-    /// The paw swipe, then `then` (closing the tab), then the drop back to the floor.
-    func swipe(then: @escaping () -> Void) {
-        guard state == .perch else { then(); return }
-        afterSwipe = then
+    /// Focus mode closed a tab: a quick paw swipe where he stands.
+    func swipeHere() {
+        guard running, !hiddenForFullScreen, ![.dangle, .fall].contains(state) else { return }
         set(.swipe, for: anims["swipe"].map { Double($0.count) / $0.fps } ?? 0.5)
-    }
-
-    /// End a visit: from up on the tab he simply lets go and falls to the floor.
-    func drop() {
-        visitTo = nil; onPerched = nil; onPulledAway = nil; afterSwipe = nil
-        switch state {
-        case .perch, .leap, .swipe: vy = 60; set(.fall, for: 5)
-        case .dash: set(.idle, for: 3)
-        default: break
-        }
     }
 
     // ------------------------------------------------------------------ state machine
@@ -192,9 +201,6 @@ final class PetController {
         case .purr: name = "purr"
         case .dangle, .fall: name = "dangle"
         case .stretch: name = "stretch"
-        case .dash: name = "walk"
-        case .leap: name = "leap"
-        case .perch: name = "perch"
         case .swipe: name = "swipe"
         }
         if name != anim { anim = name; frame = 0; frameClock = 0 }
@@ -204,6 +210,14 @@ final class PetController {
         let now = CACurrentMediaTime()
         let dt = min(0.3, now - last)
         last = now
+
+        // put away behind a full-screen app: nothing to draw, just look again now and then
+        if hiddenForFullScreen {
+            fullScreenClock += dt
+            if fullScreenClock > 1 { fullScreenClock = 0; checkFullScreen() }
+            schedule(1.0 / 2)
+            return
+        }
 
         // input: a keypress resets "seconds since last key down" (no Input Monitoring needed)
         let keyIdle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
@@ -236,35 +250,17 @@ final class PetController {
             pos.y += vy * CGFloat(dt)
             let g = groundOrigin()
             if pos.y <= g { pos.y = g; vy = 0; set(.idle, for: 3) }
-        case .dash:
-            // zoomies: the walk cycle played fast
-            let dir: CGFloat = targetX > pos.x ? 1 : -1
-            facing = dir
-            pos.x += dir * 340 * CGFloat(dt)
-            if (targetX - pos.x) * dir <= 2 || Date() > until { pos.x = targetX; beginLeap() }
-        case .leap:
-            guard let to = visitTo else { vy = 0; set(.fall, for: 5); break }
-            let t = min(1, (now - leap.t0) / leap.dur)
-            let e = CGFloat(t * t * (3 - 2 * t))
-            pos.x = leap.from.x + (to.x - leap.from.x) * e
-            pos.y = leap.from.y + (to.y - leap.from.y) * e + CGFloat(sin(t * .pi)) * 70
-            if t >= 1 {
-                pos = to
-                set(.perch, for: .infinity)
-                let cb = onPerched; onPerched = nil; cb?()
-            }
-        case .perch:
-            if let to = visitTo { pos = to }
         case .swipe:
-            if let to = visitTo { pos = to }
-            if Date() > until { let cb = afterSwipe; afterSwipe = nil; cb?() }
+            if Date() > until { set(.idle, for: 3) }
         }
-        if ![.dangle, .fall, .leap, .perch, .swipe].contains(state) { pos.y = groundOrigin() }
-        if ![.leap, .perch, .swipe].contains(state) { pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound) }
+        if state != .dangle && state != .fall { pos.y = groundOrigin() }
+        pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound)
+        fullScreenClock += dt
+        if fullScreenClock > 2 { fullScreenClock = 0; checkFullScreen() }
 
         // animate (taps advance per key instead of by time)
         if let a = anims[anim], state != .tap {
-            frameClock += state == .dash ? dt * 2.4 : dt
+            frameClock += dt
             let step = 1 / a.fps
             while frameClock >= step {
                 frameClock -= step
@@ -274,7 +270,7 @@ final class PetController {
         place()
         hitTest()
         // asleep, one tick per breathing frame is enough to notice the first key or mouse move
-        schedule(state == .leap ? 1.0 / 40 : [.walk, .dash, .dangle, .fall, .swipe].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
+        schedule([.walk, .dangle, .fall, .swipe].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
     }
 
     private func onKey() {
@@ -355,19 +351,14 @@ final class PetController {
     func mouseDown(at p: CGPoint) { grab = p; dragged = false }
     func mouseDragged() {
         guard grab != nil else { return }
-        if !dragged {
-            dragged = true
-            // pulled off a tab: the visit is over and the site is let be
-            if visitTo != nil { let cb = onPulledAway; visitTo = nil; onPerched = nil; onPulledAway = nil; afterSwipe = nil; cb?() }
-            set(.dangle, for: .infinity)
-        }
+        if !dragged { dragged = true; set(.dangle, for: .infinity) }
         let m = NSEvent.mouseLocation
         // held by the scruff: the top of the head stays under the cursor
         pos = CGPoint(x: m.x - size.width / 2, y: m.y - size.height * 0.9)
         place()
     }
     func mouseUp() {
-        if dragged { vy = 0; set(.fall, for: 5) } else if visitTo == nil { set(.purr, for: 3.5) }
+        if dragged { vy = 0; set(.fall, for: 5) } else { set(.purr, for: 3.5) }
         grab = nil; dragged = false
     }
 }

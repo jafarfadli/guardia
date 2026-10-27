@@ -54,11 +54,9 @@ enum Snapshot {
         isl.endPreviewSearch()
         shot("ring") { isl.ring(title: "Alarm 07.30", subtitle: "bangun", action: ("tunda 5 menit", {}), dismiss: {}) }
         isl.endRing()
-        shot("visit") { isl.showGuard(site: "YouTube", seconds: 5, allow: {}) }
-        isl.endGuard()
 
         // Maestro: one frame from each animation on paper, to check how the sheets are sliced
-        let picks = [("idle", 0), ("walk", 0), ("walk", 6), ("tap", 1), ("purr", 3), ("sleep", 0), ("stretch", 5), ("dangle", 2)]
+        let picks = [("idle", 0), ("walk", 0), ("walk", 6), ("tap", 1), ("purr", 3), ("sleep", 0), ("stretch", 5), ("dangle", 2), ("swipe", 3)]
         let cats = picks.compactMap { delegate.pet.snapshot($0.0, frame: $0.1) }
         if let c0 = cats.first, let strip = CGContext(data: nil, width: c0.width * cats.count, height: c0.height, bitsPerComponent: 8, bytesPerRow: 0,
                                                      space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {

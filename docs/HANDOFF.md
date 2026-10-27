@@ -1,6 +1,6 @@
 # Handoff — Guardia desktop
 
-Read this first if you are picking up the work in a new session. Last updated: 2026-10-26 (night). Revision rounds 2–5 have shipped; round 5 renamed the app **Kamar → Guardia** and the cat **si Oren → Maestro**. Waiting on the user's feedback.
+Read this first if you are picking up the work in a new session. Last updated: 2026-10-27. Revision rounds 2–6 have shipped (round 5 renamed Kamar → Guardia and si Oren → Maestro). Waiting on the user's feedback.
 
 ## What the user wants
 
@@ -176,6 +176,30 @@ The user asked:
   - Typing at the root still finds projects, Spotify searches, and "timer 10" / "alarm 7.30" / "fokus 50".
   - `Projects.all()`: every folder in `~/Koding`, recent VS Code ones first, the rest by name.
   - Letters-in-order fuzzy matching now only checks titles.
+
+## Revision round 6 (done, 2026-10-27)
+
+1. **Maestro still showed over full-screen apps.** A `.nonactivatingPanel` with `.canJoinAllSpaces` shows on full-screen Spaces whatever its collection behaviour says. Now `PetController.checkFullScreen()` orders the panel out whenever the frontmost app has a layer-0 window exactly the size of the screen (CG top-left coordinates). It runs:
+   - on Space changes and app activation (again 0.3 s later, once the window list settles);
+   - every second from the pet loop.
+
+   Verified against VS Code in full screen (its window is 1440×900 at 0,0, plus a 32 pt strip above the screen). Status reports `hiddenForFullScreen`.
+2. **Switching "Wallpaper hidup" off no longer reverts to the old system picture.** The cause: `--set-wallpaper` only changes the current Space, so other Spaces still had old pictures. Now the off state freezes the room instead:
+   - `WallpaperController.setLive(false)` takes `takeSnapshot` of each page and shows it in the same desktop-level window (an `NSImageView`, on every Space), then drops the WKWebView.
+   - The still is saved to `~/.guardia/still-<display>.png` and is used at launch when live is off; the fallback is the raw frame `f1530.webp`.
+   - The same still also becomes the system desktop picture (`desktop-<time>.png`; a new name each time, because macOS caches by path).
+   - `start(live:)` replaces start/stop: the room window is always there.
+3. **Focus mode closes the tab instantly.** `FocusGuard` polls every 1 s while Chrome is frontmost and closes a guarded front tab the moment it sees one. Maestro calls `swipeHere()` (an in-place paw swipe) and the island shows a toast. The visit removed:
+   - from the pet: `dash`, `leap`, `perch`, `investigate`;
+   - from the island: the countdown mode and "biarin";
+   - from the sprites: `leap` and `perch`.
+4. **Answered: "why does the background sometimes look striped?"** The cause was in the print grade (`grade.js`):
+   - the paper mottling noise was stretched about 2.6× horizontally;
+   - the "blue fibres" were 20 × 2.5 px horizontal streaks;
+   - the film grain used 1.5 px cells, which beat into a fine grid.
+
+   Now the mottling is isotropic (`fbm(px * 0.016)`), the blue fibres are gone, and the grain uses whole 2 px cells. Intentional lines remain: window-frame stripes in the afternoon beam, hatching in deep shade, and the floor planks.
+5. **Answered: custom folder and app icons.** Possible for folders and third-party apps (`NSWorkspace.setIcon`), but not for Apple's system apps (sealed system volume), and app updates may reset them. Offered to draw a set in the room's ink style; waiting for the user's list.
 
 ## Tools and gotchas
 

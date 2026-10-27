@@ -9,10 +9,9 @@ final class IslandPanel: NSPanel {
 
 // The "dynamic island" for a notch-less Mac: a paper tab hanging from the top centre, inked
 // by hand. Folded, it shows the time and the battery with whatever is going on between them
-// (a song, a timer, a note). Click it to search; it also rings alarms and shows Maestro's
-// focus-mode visits.
+// (a song, a timer, a note). Click it to search; it also rings alarms.
 final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
-    enum Content: Equatable { case status, music, timer, toast, search, ring, visit }
+    enum Content: Equatable { case status, music, timer, toast, search, ring }
 
     let panel: IslandPanel
     let view: IslandView
@@ -36,7 +35,6 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private(set) var scroll = 0          // first visible row; long lists show seven at a time
     static let visibleRows = 7
     private(set) var ringing: (title: String, subtitle: String, action: (label: String, run: () -> Void)?, dismiss: () -> Void)?
-    private(set) var visit: (site: String, deadline: Date, seconds: Double, allow: () -> Void)?
 
     override init() {
         panel = IslandPanel(contentRect: CGRect(x: 0, y: 0, width: 80, height: 30), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -85,7 +83,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     private let frontLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
     private let backLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
     private func updateLevel() {
-        let wantsFront = hover || view.peek || toastUntil != nil || searching || ringing != nil || visit != nil
+        let wantsFront = hover || view.peek || toastUntil != nil || searching || ringing != nil
         var covered = false
         if !wantsFront, let screen = NSScreen.main,
            let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
@@ -121,14 +119,13 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         }
         if let until = toastUntil, Date() > until { toastUntil = nil; refresh() }
         // redraw only while something moves: a playing song, a running timer, a countdown
-        let moving = (nowPlaying?.playing ?? false) || timer?.running == true || visit != nil
-        if moving && !searching && (frameCount % (hover || visit != nil ? 1 : 2) == 0) { view.needsDisplay = true }
+        let moving = (nowPlaying?.playing ?? false) || timer?.running == true
+        if moving && !searching && (frameCount % (hover ? 1 : 2) == 0) { view.needsDisplay = true }
     }
 
     var content: Content {
         if searching { return .search }
         if ringing != nil { return .ring }
-        if visit != nil { return .visit }
         if view.toast != nil, toastUntil != nil, view.autoExpand { return .toast }
         if hover, timer?.running == true { return .timer }
         if hover || view.peek, nowPlaying != nil { return .music }
@@ -161,7 +158,7 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
     }
 
-    // ------------------------------------------------------------------ ringing and visits
+    // ------------------------------------------------------------------ ringing
     func ring(title: String, subtitle: String, action: (label: String, run: () -> Void)?, dismiss: @escaping () -> Void) {
         if searching { closeSearch() }
         ringing = (title, subtitle, action, dismiss)
@@ -169,11 +166,6 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
     }
     func endRing() { ringing = nil; refresh() }
 
-    func showGuard(site: String, seconds: Double, allow: @escaping () -> Void) {
-        visit = (site, Date().addingTimeInterval(seconds), seconds, allow)
-        refresh()
-    }
-    func endGuard() { visit = nil; refresh() }
 
     // ------------------------------------------------------------------ search
     func openSearch() {
@@ -300,7 +292,6 @@ final class IslandController: NSObject, NSWindowDelegate, NSTextFieldDelegate {
             let rows = max(1, min(IslandController.visibleRows, results.count))
             return CGSize(width: 560, height: 58 + CGFloat(rows) * 40 + 30)
         case .ring: return CGSize(width: 380, height: 104)
-        case .visit: return CGSize(width: 390, height: 96)
         case .toast: return CGSize(width: 340, height: 64)
         case .music: return CGSize(width: 400, height: 116)
         case .timer: return CGSize(width: 300, height: 92)
@@ -361,7 +352,7 @@ final class IslandView: NSView {
             if let i = rows.firstIndex(where: { $0.contains(p) }) { c.selected = i + c.scroll; c.runSelected(alt: event.modifierFlags.contains(.command)) }
             return
         }
-        if c.ringing != nil || c.visit != nil { return }
+        if c.ringing != nil { return }
         c.openSearch()
     }
     override func rightMouseDown(with event: NSEvent) { controller?.onMenu?(self, convert(event.locationInWindow, from: nil)) }
@@ -503,7 +494,6 @@ final class IslandView: NSView {
         case .toast: if let t = toast { drawToast(ctx, inner, sc, icon: t.0, text: t.1) }
         case .search: drawSearch(ctx, inner, sc)
         case .ring: drawRing(ctx, inner, sc)
-        case .visit: drawVisit(ctx, inner, sc)
         }
     }
 
@@ -731,7 +721,7 @@ final class IslandView: NSView {
         text(foot, Ink.font(11, weight: .medium), sc.inkSoft, at: CGPoint(x: r.minX, y: bounds.height - pad - 24))
     }
 
-    // ------------------------------------------------------------------ alarm ringing, guard visit
+    // ------------------------------------------------------------------ alarm ringing
     private func drawRing(_ ctx: CGContext, _ r: CGRect, _ sc: Scheme) {
         guard let c = controller, let ring = c.ringing else { return }
         let t = Date().timeIntervalSinceReferenceDate
@@ -749,20 +739,6 @@ final class IslandView: NSView {
             buttons.append((s, { action.run() }))
         }
         needsDisplaySoon()
-    }
-
-    private func drawVisit(_ ctx: CGContext, _ r: CGRect, _ sc: Scheme) {
-        guard let c = controller, let v = c.visit else { return }
-        let left = max(0, v.deadline.timeIntervalSinceNow)
-        catDoodle(ctx, center: CGPoint(x: r.minX + 13, y: 30), size: 11, color: sc.ink, asleep: false)
-        text("Maestro mau nutup \(v.site)", Ink.font(16, weight: .bold), sc.ink, at: CGPoint(x: r.minX + 36, y: 13), maxWidth: r.width - 36)
-        text("fokus dulu ya · \(Int(left.rounded(.up))) detik lagi", Ink.font(12.5, weight: .medium), sc.inkSoft, at: CGPoint(x: r.minX + 36, y: 36))
-        let p = CGFloat(left / max(0.1, v.seconds))
-        Ink.stroke([CGPoint(x: r.minX, y: 66), CGPoint(x: r.maxX - 100, y: 66)], width: 1.1, color: sc.inkSoft, seed: 121, taper: 0.2, in: ctx)
-        Ink.stroke([CGPoint(x: r.minX, y: 66), CGPoint(x: r.minX + (r.maxX - 100 - r.minX) * p, y: 66)], width: 3.2, color: Theme.terracotta, seed: 122, taper: 0.1, in: ctx)
-        let b = CGRect(x: r.maxX - 84, y: 55, width: 84, height: 24)
-        pill(ctx, b, "biarin", fill: Theme.teal.withAlphaComponent(0.22), sc: sc, seed: 123)
-        buttons.append((b, { v.allow() }))
     }
 
     private var redrawPending = false

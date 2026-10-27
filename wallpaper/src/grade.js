@@ -40,7 +40,8 @@ void main(){
   vec3 c = texture(uScene, vUv).rgb;
   float l = dot(c, vec3(0.299, 0.587, 0.114));
   // dry-ink: dark ink skips a little where the paper fibres are high
-  float fib = fbm(px * vec2(0.010, 0.026) + uSeed);
+  // paper mottling, the same in every direction: stretched noise read as horizontal stripes
+  float fib = fbm(px * 0.016 + uSeed);
   float fib2 = vnoise(px * 0.35 + uSeed * 3.0);
   float inkMask = 1.0 - smoothstep(0.05, 0.13, l);
   c = mix(c, c + vec3(0.10, 0.075, 0.05), inkMask * uInkSkip * smoothstep(0.55, 0.85, fib * 0.6 + fib2 * 0.6));
@@ -56,12 +57,10 @@ void main(){
   // soft warm glow only on the brightest spots
   vec3 gl = texture(uGlow, vUv).rgb;
   c += gl * uGlowCol * uGlowK;
-  // paper: warm tint, coloured grain (yellow fibres, rare blue fibres)
+  // paper: warm tint and an even mottled grain
   c = mix(c, c * uPaper, uPaperK);
   float grain = (fib - 0.5) * 1.6 + (fib2 - 0.5) * 0.6;
   c *= 1.0 + grain * uPaperGrain;
-  float blue = smoothstep(0.86, 0.93, vnoise(px * vec2(0.05, 0.4) + 91.0));
-  c = mix(c, c * vec3(0.94, 0.97, 1.05), blue * 0.25);
   // lifted blacks: the darkest tone is a warm dark grey-brown
   c = uLift + (1.0 - uLift) * clamp(c, 0.0, 1.2);
   // faint brown vignette
@@ -75,7 +74,7 @@ const FINAL = COMMON + `
 uniform sampler2D uTex; uniform vec2 uRes; uniform float uTime, uGrain;
 void main(){
   vec3 c = texture(uTex, vUv).rgb;
-  vec2 px = floor(vUv * uRes / 1.5);
+  vec2 px = floor(vUv * uRes / 2.0); // whole 2-px cells: 1.5-px cells beat into a fine grid
   float t = floor(uTime * 12.0);
   float n = hash(px + vec2(t * 17.31, t * 41.73)) - 0.5;
   float n2 = hash(px.yx * 1.7 + vec2(t * 3.1, 7.7)) - 0.5;

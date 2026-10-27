@@ -33,7 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         power.start()
         wallpaper.lowPower = !power.state.onAC
-        if wallpaperOn { wallpaper.start() }
+        // the room is always there: live, or a still of itself when "Wallpaper hidup" is off
+        wallpaper.start(live: wallpaperOn)
 
         island.timer = focus
         island.launcher = launcher
@@ -47,7 +48,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusGuard.timer = focus
         focusGuard.pet = pet
         focusGuard.island = island
-        focusGuard.petAround = { [weak self] in self?.petOn ?? false }
         focusGuard.onChange = { [weak self] in guard let self else { return }; self.island.focusOn = self.focusGuard.on }
         alarms.onRing = { [weak self] a in
             guard let self else { return }
@@ -190,7 +190,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setIsland(_ on: Bool) { islandOn = on; on ? island.start() : island.stop() }
     private func setWallpaper(_ on: Bool) {
         wallpaperOn = on
-        if on { wallpaper.start(); wallpaper.setNowPlaying(music.track) } else { wallpaper.stop() }
+        wallpaper.setLive(on)
+        if on { wallpaper.setNowPlaying(music.track) }
     }
 
     /// guardia://status writes what each part is doing to ~/.guardia/status.json (for checking from a terminal).

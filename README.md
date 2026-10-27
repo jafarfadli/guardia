@@ -7,7 +7,7 @@ Desktop Mac ini sekarang adalah satu ruangan yang digambar seperti **komik yang 
 | Bagian | Apa | Di mana |
 |---|---|---|
 | Wallpaper hidup | Ruangan 3D yang dirender di **Blender** dengan shading cel (5 tingkat cahaya), garis tinta Freestyle, dan grade cetak pudar. Ada 42 gambar sepanjang hari: pagi cahaya dingin dari jendela timur, sore berkas sinar matahari masuk lewat jendela sampai ke karpet dengan debu berkilau di dalamnya, malam lampu belajar yang berpendar dan lampu tumblr. Jam dinding, kalender sobek (lengkap dengan pasaran Jawa), dan sampul lagu Spotify dicetak live di atasnya | `blender/`, `wallpaper/` |
-| Maestro | Kucing oren chibi bergaya tinta, satu siluet utuh. Jalan-jalan di atas Dock di setiap desktop (tidak ikut ke app layar penuh), tidur kalau kamu tinggal, menepuk-nepuk saat kamu mengetik, mendengkur kalau diklik. Saat mode fokus, dia menjaga Chrome | `pet/`, `guardia-app/Sources/Pet.swift` |
+| Maestro | Kucing oren chibi bergaya tinta, satu siluet utuh. Jalan-jalan di lantai di setiap desktop (disembunyikan saat ada app layar penuh di depan), tidur kalau kamu tinggal, menepuk-nepuk saat kamu mengetik, mendengkur kalau diklik. Saat mode fokus, dia menjaga Chrome | `pet/`, `guardia-app/Sources/Pet.swift` |
 | Dynamic island | Tab kertas di tengah atas: jam dan baterai, dengan lagu atau timer di tengahnya. Klik untuk membuka menu dan pencarian: Claude Code, VS Code, Spotify, Timer, Alarm, Mode fokus | `guardia-app/Sources/Island.swift`, `Launcher.swift` |
 | Border jendela | Garis tinta di jendela aktif, garis pudar di jendela lain (JankyBorders) | `dotfiles/borders/` |
 | Tema app | VS Code (Kertas / Kertas Malam), Ghostty, Spotify (Spicetify), Chrome | `dotfiles/` |
@@ -35,9 +35,9 @@ Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tok
 - Klik untuk mengelus (dia mendengkur). Seret untuk mengangkatnya, lalu lepas dan dia jatuh ke lantai.
 - Saat kamu mengetik, dia menepuk-nepuk. Kalau Mac tidak disentuh 2 menit, dia tidur, lalu bangun sambil meregang.
 - Menu kucing → *Panggil Maestro* membuatnya berjalan ke arah kursor.
-- **Mode fokus:** kalau tab Chrome yang sedang kamu lihat adalah Instagram, TikTok, YouTube, atau X, Maestro berlari ke sana, melompat ke tab itu, dan menunggu 5 detik. Klik *biarin* di island untuk mengizinkan situs itu 10 menit (atau tarik Maestro dari tab-nya). Kalau tidak, tab itu dia cakar sampai tertutup.
+- **Mode fokus:** begitu tab Chrome yang sedang kamu lihat adalah Instagram, TikTok, YouTube, atau X, tab itu langsung ditutup. Maestro mencakar di tempatnya, dan island memberi tahu situs apa yang ditutup.
 
-**Menu Guardia**: klik ikon kucing di menu bar macOS (gerakkan kursor ke tepi atas) untuk mode fokus, menyalakan atau mematikan wallpaper, Maestro, island, atau keluar.
+**Menu Guardia**: klik ikon kucing di menu bar macOS (gerakkan kursor ke tepi atas) untuk mode fokus, menyalakan atau mematikan Maestro dan island, atau keluar. *Wallpaper hidup* yang dimatikan tidak mengembalikan wallpaper lama: ruangan dibekukan menjadi gambar diam dari saat itu (di semua Space, dan juga jadi gambar layar kunci), dan memori untuk halaman hidupnya dilepas.
 
 **Dari Terminal, Raycast, atau Shortcuts**:
 ```sh
@@ -46,7 +46,7 @@ open -g guardia://focus/25        # mode fokus 25 menit
 open -g guardia://rest/5          # istirahat 5 menit
 open -g guardia://stop            # hentikan timer dan mode fokus
 open -g guardia://pet/come        # panggil Maestro (pet/on, pet/off)
-open -g guardia://wallpaper/off   # matikan wallpaper (wallpaper/on)
+open -g guardia://wallpaper/off   # bekukan wallpaper jadi gambar diam (wallpaper/on untuk hidup lagi)
 open -g guardia://playpause       # play / pause musik
 open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json
 ```

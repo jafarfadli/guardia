@@ -41,16 +41,6 @@
       "fps": 9,
       "loop": false
     },
-    "leap": {
-      "frames": 6,
-      "fps": 12,
-      "loop": false
-    },
-    "perch": {
-      "frames": 12,
-      "fps": 6,
-      "loop": true
-    },
     "swipe": {
       "frames": 6,
       "fps": 12,
