@@ -43,6 +43,17 @@ run() { # $1: --set-icons or --restore-icons
   return $failed
 }
 
+# The Dock keeps its own icon cache and won't notice a new icon until the bundle looks changed
+# and the cache is gone; apps that are open keep their old icon until they are reopened.
+refresh_dock() {
+  python3 - "$DIR/manifest.json" <<'PY' | while IFS= read -r app; do touch "$app" 2>/dev/null || sudo touch "$app"; done
+import json, sys
+for a in json.load(open(sys.argv[1]))['apps']: print(a['app'])
+PY
+  rm -f "$(getconf DARWIN_USER_CACHE_DIR)com.apple.dock.iconcache"
+  killall Dock 2>/dev/null
+}
+
 # macOS lets only terminals allowed under App Management change other apps: on a refusal,
 # open that setting, wait for the switch, and try once more
 run_allowed() {
@@ -65,15 +76,15 @@ case ${1:-apply} in
     run_allowed --set-icons apply
     say "Merapikan Dock"
     python3 $ROOT/scripts/dock.py apply
-    killall Dock 2>/dev/null
-    say "Selesai. Ikon baru muncul di Dock dan Finder."
+    refresh_dock
+    say "Selesai. App yang sedang terbuka baru ganti ikon di Dock setelah ditutup (⌘Q) dan dibuka lagi."
     ;;
   restore)
     [[ -f $DIR/manifest.json ]] || { echo "Belum ada ikon yang dipasang."; exit 0 }
     say "Mengembalikan ikon asli"
     run_allowed --restore-icons restore
     python3 $ROOT/scripts/dock.py restore
-    killall Dock 2>/dev/null
+    refresh_dock
     ;;
   *) echo "pakai: $0 apply | restore"; exit 1 ;;
 esac
