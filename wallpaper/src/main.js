@@ -161,7 +161,11 @@ function placeRain(px, dpr, day) {
 function thunder() {
   stormTimer = setTimeout(() => {
     if (rainKind !== 'storm') return;
-    if (!state.lowPower) { flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on'); }
+    if (!state.lowPower) {
+      flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on');
+      // the cats on the desktop jump at it
+      try { window.webkit?.messageHandlers?.guardia?.postMessage('thunder'); } catch {}
+    }
     thunder();
   }, 9000 + Math.random() * 22000);
 }

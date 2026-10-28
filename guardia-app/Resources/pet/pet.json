@@ -50,6 +50,66 @@
       "frames": 6,
       "fps": 12,
       "loop": false
+    },
+    "watch": {
+      "frames": 12,
+      "fps": 6,
+      "loop": true
+    },
+    "meow": {
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    "loaf": {
+      "frames": 12,
+      "fps": 4,
+      "loop": true
+    },
+    "startle": {
+      "frames": 8,
+      "fps": 12,
+      "loop": false
+    },
+    "bob": {
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    "flop": {
+      "frames": 8,
+      "fps": 3,
+      "loop": true
+    },
+    "hot": {
+      "frames": 8,
+      "fps": 6,
+      "loop": true
+    },
+    "stalk": {
+      "frames": 8,
+      "fps": 10,
+      "loop": true
+    },
+    "bite": {
+      "frames": 6,
+      "fps": 12,
+      "loop": false
+    },
+    "beg": {
+      "frames": 12,
+      "fps": 6,
+      "loop": true
+    },
+    "eat": {
+      "frames": 12,
+      "fps": 8,
+      "loop": true
+    },
+    "groom": {
+      "frames": 12,
+      "fps": 8,
+      "loop": true
     }
   }
 }

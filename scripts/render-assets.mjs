@@ -21,18 +21,21 @@ const browser = await puppeteer.launch({ executablePath: '/Applications/Google C
 try {
   const tab = await browser.newPage();
   tab.on('pageerror', (e) => console.log('[pageerror]', e.message));
-  await tab.goto(`http://127.0.0.1:${port}/pet/index.html?scale=2`, { waitUntil: 'load' });
-  await tab.waitForFunction('window.__sprites', { timeout: 60000 });
-  const sprites = await tab.evaluate(() => window.__sprites);
-  const outDir = join(root, 'guardia-app/Resources/pet');
-  await mkdir(outDir, { recursive: true });
-  const meta = { cell: sprites.cell, anims: {} };
-  for (const [name, a] of Object.entries(sprites.anims)) {
-    await writeFile(join(outDir, `${name}.png`), Buffer.from(a.png.split(',')[1], 'base64'));
-    meta.anims[name] = { frames: a.frames, fps: a.fps, loop: a.loop };
-    console.log('pet', name, a.frames, 'frames');
+  // the two cats: one set of poses, two coats
+  for (const [coat, dir] of [['maestro', 'pet'], ['maestra', 'maestra']]) {
+    await tab.goto(`http://127.0.0.1:${port}/pet/index.html?scale=2&coat=${coat}`, { waitUntil: 'load' });
+    await tab.waitForFunction('window.__sprites', { timeout: 60000 });
+    const sprites = await tab.evaluate(() => window.__sprites);
+    const outDir = join(root, 'guardia-app/Resources', dir);
+    await mkdir(outDir, { recursive: true });
+    const meta = { cell: sprites.cell, anims: {} };
+    for (const [name, a] of Object.entries(sprites.anims)) {
+      await writeFile(join(outDir, `${name}.png`), Buffer.from(a.png.split(',')[1], 'base64'));
+      meta.anims[name] = { frames: a.frames, fps: a.fps, loop: a.loop };
+    }
+    await writeFile(join(outDir, 'pet.json'), JSON.stringify(meta, null, 2));
+    console.log(coat, Object.keys(meta.anims).length, 'animations');
   }
-  await writeFile(join(outDir, 'pet.json'), JSON.stringify(meta, null, 2));
 
   // printed textures for the Blender room
   await tab.goto(`http://127.0.0.1:${port}/blender/textures.html`, { waitUntil: 'load' });

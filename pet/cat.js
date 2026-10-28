@@ -1,13 +1,28 @@
-// Maestro, chibi edition: a round orange tabby drawn in the room's ink.
+// Maestro and Maestra, chibi edition, drawn in the room's ink: he a round orange tabby, she a
+// tuxedo (black, with a white bib, socks, muzzle and a blaze between the eyes).
 // The whole cat is one silhouette: every part is inked first with a wide stroke, then all parts
 // are filled on top, so only the outer contour keeps its ink and nothing looks bolted on.
 import { catmull, stroke, setInk } from '../wallpaper/src/ink.js';
 
-export const COL = {
-  fur: '#E08E46', furLit: '#F0AE66', furShade: '#BF6D33', furDeep: '#A35A2A',
-  stripe: '#B4602C', cream: '#F5E4C3', creamShade: '#DCC49B',
-  pink: '#E39A8E', blush: 'rgba(226,120,110,0.55)', eye: '#2B1C14', shine: '#FFF8EA', ink: '#2B1C14',
+export const COATS = {
+  maestro: {
+    coat: 'tabby',
+    fur: '#E08E46', furLit: '#F0AE66', furShade: '#BF6D33', furDeep: '#A35A2A',
+    stripe: '#B4602C', cream: '#F5E4C3', creamShade: '#DCC49B',
+    pink: '#E39A8E', blush: 'rgba(226,120,110,0.55)', eye: '#2B1C14', shine: '#FFF8EA', ink: '#2B1C14',
+    line: '#2B1C14', whisker: '#2B1C14',
+  },
+  maestra: {
+    coat: 'tuxedo',
+    fur: '#3A3537', furLit: '#5A5253', furShade: '#2A2628', furDeep: '#1E1B1C',
+    stripe: '#3A3537', cream: '#F3EDE1', creamShade: '#D6CCBA',
+    pink: '#E8A194', blush: 'rgba(232,130,120,0.6)', eye: '#1C1512', iris: '#C3C25A', shine: '#FFF8EA', ink: '#2B1C14',
+    // lines drawn over black fur (closed eyes, lids, whiskers) are light, as on a printed black cat
+    line: '#E6DDCB', whisker: '#EEE7D8',
+  },
 };
+// the coat being drawn (poses.js reads it for its extras)
+export let COL = COATS.maestro;
 
 const W = 1.9; // ink weight in cell px
 const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
@@ -61,14 +76,19 @@ function path(ctx, pts) {
 }
 function fill(ctx, pts, col) { path(ctx, pts); ctx.fillStyle = col; ctx.fill(); }
 function within(ctx, pts, fn) { ctx.save(); path(ctx, pts); ctx.clip(); fn(); ctx.restore(); }
-const inkLine = (ctx, pts, w, o = {}) => stroke(ctx, pts, { w, taper: o.taper ?? 0.7, seed: o.seed ?? 3, wobble: 0.25, breathe: 0.2, alpha: o.alpha ?? 1 });
+const inkLine = (ctx, pts, w, o = {}) => {
+  if (o.color) setInk(o.color, 1);
+  stroke(ctx, pts, { w, taper: o.taper ?? 0.7, seed: o.seed ?? 3, wobble: 0.25, breathe: 0.2, alpha: o.alpha ?? 1 });
+  if (o.color) setInk(COL.ink, 1);
+};
 
 // ---------------------------------------------------------------- the cat
 // pose: {
 //   body: {x, y, rx, ry, a, shape: 'bean'|'sit'|'loaf'}, head: {x, y, r, a}, ears: lift (−1 flat … 1 perked),
 //   legs: [{hip, foot, far}], tail: [[x,y]…], eyes: 'open'|'closed'|'happy'|'sleepy'|'half', blink, mouth: 'w'|'open'|'smile',
 //   look: [dx, dy] pupil offset, extra(ctx) }
-export function drawCat(ctx, pose) {
+export function drawCat(ctx, pose, coat = COATS.maestro) {
+  COL = coat;
   setInk(COL.ink, 1);
   const parts = buildParts(pose);
   // 1 · ink every part's edge, wide; 2 · fill every part on top; only the union's rim stays inked
@@ -110,7 +130,7 @@ function buildParts(pose) {
         fill(ctx, t.outline, COL.fur);
         within(ctx, t.outline, () => {
           const s = t.spine;
-          for (const k of [0.3, 0.52, 0.72]) {
+          for (const k of COL.coat === 'tabby' ? [0.3, 0.52, 0.72] : []) {
             const i = Math.floor(k * (s.length - 1));
             const p = s[i], q = s[Math.min(s.length - 1, i + 2)];
             const ang = Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2;
@@ -141,8 +161,13 @@ function buildParts(pose) {
         fill(ctx, ellipse(add(c, rot([b.rx * 0.15, b.ry * 0.62], b.a ?? 0)), b.rx * 0.78, b.ry * 0.5, b.a ?? 0), COL.cream);
         fill(ctx, ellipse(add(c, rot([0, b.ry * 1.25], b.a ?? 0)), b.rx * 1.3, b.ry * 0.55, b.a ?? 0), COL.furShade);
         fill(ctx, ellipse(add(c, rot([-b.rx * 0.05, -b.ry * 1.18], b.a ?? 0)), b.rx * 1.05, b.ry * 0.5, b.a ?? 0), COL.furLit);
+        // a tuxedo's white shirt front, under the chin
+        if (COL.coat === 'tuxedo') {
+          const bib = b.shape === 'sit' ? [0.42, -0.05, 0.5, 0.78] : b.shape === 'loaf' ? [0.62, 0.15, 0.36, 0.7] : [0.66, 0.12, 0.38, 0.66];
+          fill(ctx, ellipse(add(c, rot([bib[0] * b.rx, bib[1] * b.ry], b.a ?? 0)), bib[2] * b.rx, bib[3] * b.ry, (b.a ?? 0) + 0.15), COL.cream);
+        }
         // three soft tabby stripes over the back
-        for (const k of [-0.5, -0.12, 0.26]) {
+        for (const k of COL.coat === 'tabby' ? [-0.5, -0.12, 0.26] : []) {
           const top = add(c, rot([k * b.rx, -b.ry * 1.05], b.a ?? 0));
           const mid = add(c, rot([(k - 0.08) * b.rx, -b.ry * 0.25], b.a ?? 0));
           const wdt = b.rx * 0.075;
@@ -181,8 +206,13 @@ function buildParts(pose) {
         fill(ctx, ellipse(R(-0.15, -1.05), h.r * 1.05, h.r * 0.48, h.a ?? 0), COL.furLit);
         fill(ctx, ellipse(R(0.12, 0.62), h.r * 0.62, h.r * 0.4, h.a ?? 0), COL.cream);
         fill(ctx, ellipse(R(0.0, 1.32), h.r * 1.3, h.r * 0.5, h.a ?? 0), COL.furShade);
-        // the forehead "M"
-        for (const x of [-0.24, 0.0, 0.24]) fill(ctx, catmull([R(x - 0.06, -0.92), R(x, -0.52), R(x + 0.06, -0.92)], true, 4), COL.stripe);
+        if (COL.coat === 'tabby') {
+          // the forehead "M"
+          for (const x of [-0.24, 0.0, 0.24]) fill(ctx, catmull([R(x - 0.06, -0.92), R(x, -0.52), R(x + 0.06, -0.92)], true, 4), COL.stripe);
+        } else {
+          // the tuxedo's white blaze, from the muzzle up between the eyes
+          fill(ctx, catmull([R(0.02, 0.5), R(0.06, -0.12), R(0.12, -0.42), R(0.18, -0.12), R(0.26, 0.5)], true, 6), COL.cream);
+        }
       });
     },
   });
@@ -198,17 +228,30 @@ function face(ctx, pose) {
   const er = h.r * 0.17;
   const mode = pose.eyes ?? 'open';
   for (const [i, e] of eyes.entries()) {
-    if (mode === 'open' || mode === 'half') {
-      ctx.fillStyle = COL.eye;
-      ctx.beginPath(); ctx.ellipse(e[0], e[1], er * 0.88, er * (mode === 'half' ? 0.55 : 1.08), a, 0, Math.PI * 2); ctx.fill();
-      if (mode === 'half') inkLine(ctx, [add(e, [-er * 1.1, -er * 0.45]), add(e, [er * 1.1, -er * 0.55])], W * 1.1, { taper: 0.3 });
+    if (mode === 'open' || mode === 'half' || mode === 'wide') {
+      const ry = er * (mode === 'half' ? 0.55 : mode === 'wide' ? 1.3 : 1.08), rx = er * (mode === 'wide' ? 1.05 : 0.88);
+      if (COL.iris) {
+        // a coloured iris and a tall pupil: dark eyes would vanish in black fur
+        ctx.fillStyle = COL.iris;
+        ctx.beginPath(); ctx.ellipse(e[0], e[1], rx * 1.08, ry * 1.04, a, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = COL.eye;
+        ctx.beginPath(); ctx.ellipse(e[0] + rx * 0.06, e[1], rx * (mode === 'wide' ? 0.62 : 0.42), ry * 0.86, a, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.fillStyle = COL.eye;
+        ctx.beginPath(); ctx.ellipse(e[0], e[1], rx, ry, a, 0, Math.PI * 2); ctx.fill();
+      }
+      if (mode === 'half') inkLine(ctx, [add(e, [-er * 1.1, -er * 0.45]), add(e, [er * 1.1, -er * 0.55])], W * 1.1, { taper: 0.3, color: COL.line });
       ctx.fillStyle = COL.shine;
       ctx.beginPath(); ctx.arc(e[0] + er * 0.28, e[1] - er * 0.38, er * 0.36, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(e[0] - er * 0.3, e[1] + er * 0.38, er * 0.16, 0, Math.PI * 2); ctx.fill();
     } else if (mode === 'happy') {
-      inkLine(ctx, [add(e, [-er, er * 0.3]), add(e, [0, -er * 0.55]), add(e, [er, er * 0.3])], W * 1.25, { taper: 0.4, seed: i });
+      inkLine(ctx, [add(e, [-er, er * 0.3]), add(e, [0, -er * 0.55]), add(e, [er, er * 0.3])], W * 1.25, { taper: 0.4, seed: i, color: COL.line });
+    } else if (mode === 'squint') {
+      // > <
+      const s = i === 0 ? 1 : -1;
+      inkLine(ctx, [add(e, [-er * s, -er * 0.6]), add(e, [er * s, 0]), add(e, [-er * s, er * 0.6])], W * 1.15, { taper: 0.4, seed: i, color: COL.line });
     } else {
-      inkLine(ctx, [add(e, [-er, -er * 0.05]), add(e, [0, er * 0.5]), add(e, [er, -er * 0.05])], W * 1.15, { taper: 0.4, seed: i });
+      inkLine(ctx, [add(e, [-er, -er * 0.05]), add(e, [0, er * 0.5]), add(e, [er, -er * 0.05])], W * 1.15, { taper: 0.4, seed: i, color: COL.line });
     }
   }
   // blush, nose, mouth
@@ -216,7 +259,13 @@ function face(ctx, pose) {
   for (const e of [R(-0.34, 0.45), R(0.66, 0.46)]) { ctx.beginPath(); ctx.ellipse(e[0], e[1], h.r * 0.14, h.r * 0.08, a, 0, Math.PI * 2); ctx.fill(); }
   const nose = R(0.16, 0.42);
   fill(ctx, [add(nose, [-h.r * 0.07, -h.r * 0.04]), add(nose, [h.r * 0.07, -h.r * 0.04]), add(nose, [0, h.r * 0.05])], COL.pink);
-  if (pose.mouth === 'open') {
+  if (pose.mouth === 'tongue') {
+    // panting, or licking: a pink tongue below the ω
+    const m = R(0.18, 0.66);
+    fill(ctx, ellipse(m, h.r * 0.1, h.r * 0.15, a), '#E07F86');
+    inkLine(ctx, [R(0.08, 0.6), R(0.18, 0.82), R(0.28, 0.6)], W * 0.7, { taper: 0.5 });
+    inkLine(ctx, [R(0.0, 0.52), R(0.08, 0.6), R(0.16, 0.52), R(0.24, 0.6), R(0.32, 0.52)], W * 0.85, { taper: 0.6 });
+  } else if (pose.mouth === 'open') {
     const m = R(0.16, 0.6);
     fill(ctx, ellipse(m, h.r * 0.09, h.r * 0.11, a), '#9E4436');
     inkLine(ctx, [...ellipse(m, h.r * 0.09, h.r * 0.11, a, 16), ellipse(m, h.r * 0.09, h.r * 0.11, a, 16)[0]], W * 0.8, { taper: 0 });
@@ -226,7 +275,7 @@ function face(ctx, pose) {
   }
   // whiskers: two short strokes each side
   for (const [s, x] of [[-1, -0.62], [1, 0.95]]) {
-    for (const dy of [0.42, 0.56]) inkLine(ctx, [R(x, dy), R(x + s * 0.32, dy + (dy - 0.49) * 0.8)], W * 0.5, { taper: 1, alpha: 0.85 });
+    for (const dy of [0.42, 0.56]) inkLine(ctx, [R(x, dy), R(x + s * 0.32, dy + (dy - 0.49) * 0.8)], W * 0.5, { taper: 1, alpha: 0.85, color: COL.whisker });
   }
   // a hint of chin where the head sits on the body
   inkLine(ctx, [R(-0.45, 0.88), R(0.0, 0.99), R(0.45, 0.88)], W * 0.55, { taper: 1, alpha: 0.45 });

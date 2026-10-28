@@ -5,6 +5,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let wallpaper = WallpaperController()
     let island = IslandController()
     let pet = PetController()
+    let maestra = PetController(cat: .maestra)
+    // the two cats together: their moods, the things that happen to both, their games
+    lazy var household = Household(maestro: pet, maestra: maestra)
     let music = NowPlaying()
     let power = Power()
     let focus = FocusTimer()
@@ -29,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var wallpaperOn: Bool { get { prefs.object(forKey: "wallpaper") as? Bool ?? true } set { prefs.set(newValue, forKey: "wallpaper") } }
     private var petOn: Bool { get { prefs.object(forKey: "pet") as? Bool ?? true } set { prefs.set(newValue, forKey: "pet") } }
+    private var maestraOn: Bool { get { prefs.object(forKey: "maestra") as? Bool ?? true } set { prefs.set(newValue, forKey: "maestra") } }
     private var islandOn: Bool { get { prefs.object(forKey: "island") as? Bool ?? true } set { prefs.set(newValue, forKey: "island") } }
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -61,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         launcher.notes = notes
         launcher.openNotes = { [weak self] in self?.island.openNotes() }
         launcher.photos = photos
+        launcher.maestra = maestra
         startWidgets()
         launcher.fill = { [weak self] t in self?.island.fill(t) }
         island.actions = (
@@ -86,6 +91,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if islandOn { island.start() }
         if petOn { pet.start() }
+        if maestraOn { maestra.start() }
+        household.mood.lowBattery = !power.state.onAC && power.state.percent <= 20
+        household.start()
+        wallpaper.onThunder = { [weak self] in self?.household.thunder() }
         // ⌃Space opens (and closes) the island's search from anywhere, full-screen apps too
         searchKey = Hotkey(keyCode: kVK_Space, modifiers: controlKey, id: 1) { [weak self] in
             guard let self else { return }
@@ -96,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         music.onChange = { [weak self] t, isNew in
             guard let self else { return }
             self.island.nowPlaying = t
+            self.household.mood.music = t?.playing ?? false
             if isNew { self.island.trackChanged() }
             let artKey = (t?.id.hashValue ?? 0) ^ (t?.artHex.count ?? 0)
             if isNew || artKey != lastArt { lastArt = artKey; self.wallpaper.setNowPlaying(t) }
@@ -107,7 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.island.power = new
             self.wallpaper.lowPower = !new.onAC
             self.batteries.publish()
-            if new.onAC && !old.onAC { self.island.showToast(icon: "plug", text: "Ngecas · \(new.percent)%") }
+            self.household.mood.lowBattery = !new.onAC && new.percent <= 20
+            if new.onAC && !old.onAC { self.island.showToast(icon: "plug", text: "Ngecas · \(new.percent)%"); self.household.plugged() }
             if !new.onAC && new.percent <= 15 && old.percent > 15 { self.island.showToast(icon: "low", text: "Baterai tinggal \(new.percent)%", seconds: 5) }
         }
         focus.onChange = { [weak self] in self?.island.refresh() }
@@ -149,34 +160,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         photos.onChange = { [weak self] urls in self?.widgets.set("photos", frames(urls)) }
         widgets.set("photos", frames(photos.urls))
         sessions.onChange = { [weak self] list in self?.widgets.set("sessions", list.map { ["name": $0.name, "running": $0.running] }) }
+        // the cats watch Claude work, and hear when a session hands the turn back
+        sessions.onWork = { [weak self] busy, done in
+            guard let self else { return }
+            self.household.mood.claude = busy
+            if let done { self.household.handBack(done) }
+        }
         sessions.start()
         github.onChange = { [weak self] card in self?.widgets.set("github", card) }
         github.start()
-        load.onChange = { [weak self] level in self?.widgets.set("load", level) }
+        load.onChange = { [weak self] level in
+            self?.widgets.set("load", level)
+            self?.household.mood.hot = level == "red"
+        }
         load.start()
         batteries.onChange = { [weak self] dials in self?.widgets.set("batteries", dials) }
         batteries.start()
         weather.onLocation = { [weak self] lat, lon in self?.wallpaper.setLocation(lat, lon) }
-        weather.onWeather = { [weak self] w in self?.widgets.set("weather", w) }
+        weather.onWeather = { [weak self] w in self?.showWeather(w) }
         weather.start()
     }
 
-    /// The island rings with a bell until dismissed (a minute at most); Maestro gets excited.
+    /// The window shows it; the cats curl up when it rains.
+    private func showWeather(_ w: [String: Any]) {
+        widgets.set("weather", w)
+        let kind = w["kind"] as? String
+        household.mood.rain = kind == "rain" || kind == "storm"
+    }
+
+    /// The island rings with a bell until dismissed (a minute at most); the cats come running to
+    /// the middle and meow until it is (a click on either dismisses it).
     private var ringID = 0
     private func ring(title: String, subtitle: String, action: (String, () -> Void)?) {
         ringID += 1
         let id = ringID
         let stop = { [weak self] in
             guard let self, self.ringID == id else { return }
-            self.ringer.stop(); self.island.endRing()
+            self.ringer.stop(); self.island.endRing(); self.household.alertEnd()
         }
         ringer.start()
-        pet.celebrate()
+        household.alert(dismiss: stop)
         island.ring(title: title, subtitle: subtitle, action: action.map { a in (a.0, { stop(); a.1() }) }, dismiss: stop)
         DispatchQueue.main.asyncAfter(deadline: .now() + 62) { stop() }
     }
 
-    // guardia://focus/25 · guardia://rest/5 · guardia://stop · guardia://pet/come · guardia://weather/rain
+    // guardia://focus/25 · guardia://rest/5 · guardia://stop · guardia://pet/come · guardia://maestra/off ·
+    // guardia://pet/try/thunder (claude, meal, chase, groom, swat, plug) · guardia://weather/rain
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             let parts = ([url.host ?? ""] + url.pathComponents.filter { $0 != "/" })
@@ -189,7 +218,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch parts.dropFirst().first {
                 case "on": setPet(true)
                 case "off": setPet(false)
+                case "try": household.show(parts.dropFirst(2).first ?? "")
                 default: callPet()
+                }
+            case "maestra":
+                switch parts.dropFirst().first {
+                case "on": setMaestra(true)
+                case "off": setMaestra(false)
+                default: callMaestra()
                 }
             case "wallpaper":
                 switch parts.dropFirst().first {
@@ -212,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case "weather":
                 // guardia://weather/rain (clear, partly, cloudy, rain, storm, fog): try a sky until
                 // the next real report, at most twenty minutes later
-                if let kind = parts.dropFirst().first { widgets.set("weather", ["kind": kind, "amount": 0.7]) }
+                if let kind = parts.dropFirst().first { showWeather(["kind": kind, "amount": 0.7]) }
             default: break
             }
         }
@@ -236,7 +272,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if focus.running || focusGuard.on { m.addItem(item("Hentikan timer dan mode fokus", #selector(stopTimer))) }
         m.addItem(.separator())
         m.addItem(item("Panggil Maestro", #selector(callPet)))
+        m.addItem(item("Panggil Maestra", #selector(callMaestra)))
         m.addItem(item("Maestro", #selector(togglePet), on: petOn))
+        m.addItem(item("Maestra", #selector(toggleMaestra), on: maestraOn))
         m.addItem(item("Dynamic island", #selector(toggleIsland), on: islandOn))
         m.addItem(item("Wallpaper hidup", #selector(toggleWallpaper), on: wallpaperOn))
         m.addItem(.separator())
@@ -254,10 +292,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func stopTimer() { launcher.stopTimer() }
     @objc private func callPet() { if petOn { pet.comeHere() } }
     @objc private func togglePet() { setPet(!petOn) }
+    @objc private func callMaestra() { if maestraOn { maestra.comeHere() } }
+    @objc private func toggleMaestra() { setMaestra(!maestraOn) }
     @objc private func toggleIsland() { setIsland(!islandOn) }
     @objc private func toggleWallpaper() { setWallpaper(!wallpaperOn) }
 
     private func setPet(_ on: Bool) { petOn = on; on ? pet.start() : pet.stop() }
+    private func setMaestra(_ on: Bool) { maestraOn = on; on ? maestra.start() : maestra.stop() }
     private func setIsland(_ on: Bool) { islandOn = on; on ? island.start() : island.stop() }
     private func setWallpaper(_ on: Bool) {
         wallpaperOn = on
@@ -269,7 +310,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func writeStatus() {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".guardia")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let s: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "pet": pet.debugState, "wallpaper": wallpaper.debugState,
+        let mood = household.mood
+        let s: [String: Any] = ["time": ISO8601DateFormatter().string(from: Date()), "pet": pet.debugState, "maestra": maestra.debugState,
+                                "household": household.debugState.merging(["mood": ["rain": mood.rain, "music": mood.music, "lowBattery": mood.lowBattery,
+                                                                                      "hot": mood.hot, "claude": mood.claude]]) { a, _ in a },
+                                "wallpaper": wallpaper.debugState,
                                 "island": ["running": island.running, "searching": island.searching, "notes": island.editingNotes], "folders": folderIcons.debugState,
                                 "focus": focusGuard.on, "timer": focus.running, "alarms": alarms.list.count,
                                 "widgets": widgets.debugState, "load": load.debug, "weather": weather.debug, "hotkey": searchKey?.registered ?? false]

@@ -8,7 +8,7 @@ import WebKit
 // is then reloaded, and a check every minute reloads any page that stopped answering.
 // A page says "ready" once its script runs (navigation's didFinish can come first, when nothing
 // on the page can listen yet); it then gets the song, the battery state, the widgets and the
-// location.
+// location. In a storm it says "thunder" with every flash of lightning (the cats jump).
 final class WallpaperController: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     private var windows: [CGDirectDisplayID: NSWindow] = [:]
     private var views: [WKWebView] = []
@@ -22,6 +22,8 @@ final class WallpaperController: NSObject, WKNavigationDelegate, WKScriptMessage
     var nowPlayingJS = "window.guardia && window.guardia.setNowPlaying(null)"
     private var widgets: [String: Any] = [:]
     private var location: (Double, Double)?
+    var onThunder: (() -> Void)?
+    private var lastThunder = Date.distantPast
 
     func start(live: Bool) {
         guard !running else { return }
@@ -151,8 +153,10 @@ final class WallpaperController: NSObject, WKNavigationDelegate, WKScriptMessage
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { sendState(to: webView) }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "guardia", (message.body as? String) == "ready", let web = message.webView else { return }
-        sendState(to: web)
+        guard message.name == "guardia", let body = message.body as? String else { return }
+        if body == "ready", let web = message.webView { sendState(to: web) }
+        // one page per display flashes on its own: one jump per storm flash is enough
+        if body == "thunder", Date().timeIntervalSince(lastThunder) > 3 { lastThunder = Date(); onThunder?() }
     }
 
     /// A fresh page needs everything again: the battery state, the song, the widgets, the place.

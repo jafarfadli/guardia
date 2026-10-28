@@ -352,6 +352,71 @@ The user found the room too full and the widgets too small to read. Measured on 
   - **The top edge:** the island's 10 Hz tick reads `NSEvent.mouseLocation`; the pointer against the top edge within 180 pt of the middle brings the island forward (`revealUntil`), and it stays while the pointer is on it.
 - The status menu shows "Cari… ⌃Space".
 
+## Revision round 12 (done, 2026-10-28): Maestra, and the cats react to the Mac
+
+The user asked for more interactions and a second cat. They agreed to every idea offered, named her **Maestra** (instead of the suggested "Tinta"), and chose a tuxedo coat, living on the desktop with Maestro.
+
+### Art (`pet/cat.js`, `pet/poses.js`, `scripts/render-assets.mjs`)
+- One set of poses, two coats: `COATS.maestro` (orange tabby) and `COATS.maestra` (tuxedo: charcoal fur, white bib, socks, muzzle, and a blaze between the eyes; no stripes).
+- Dark eyes and ink lines vanish on black fur. So Maestra's eyes get a yellow-green iris with a tall pupil, and her lids, closed eyes and whiskers use light `line`/`whisker` colours.
+- New eye modes: `wide` and `squint`. New mouth: `tongue`.
+- Twelve new animations:
+  - `watch` (Claude works), `meow`, `loaf` (rain), `startle` (thunder);
+  - `bob` (music, with notes), `flop` (low battery, with an empty battery), `hot` (heat lines, sweat);
+  - `stalk` (laser), `bite`;
+  - `beg` and `eat` (an enamel bowl with a blue rim);
+  - `groom`.
+- `render-assets.mjs` renders `?coat=maestro` into `Resources/pet` and `?coat=maestra` into `Resources/maestra`. Maestro's old sheets came out byte-identical.
+
+### The app
+- `PetController(cat:)` takes a `Cat` profile: sprites, scale (Maestra 0.52, Maestro 0.56) and `lazy`. Lazy means she:
+  - sleeps after 60 s instead of 120;
+  - naps 90–240 s through typing (`napping`);
+  - walks about half as much;
+  - plays no bongo;
+  - tolerates 12 s of petting (he 7);
+  - leaves Claude to him.
+- **Mood** (`PetController.Mood`: rain, music, lowBattery, hot, claude) only changes the *resting* animation. The first that holds wins: flop > hot > loaf > bob > watch > idle. Rain, a low battery or heat also stop ordinary walks.
+- **Events:**
+  - `startle()`: a hop through `lift`/`liftV` on top of the ground.
+  - `handBack(name)`: meow plus a balloon.
+  - `alert(dismiss:)` / `alertEnd()`: run to the middle, meow until a click on either cat or the island dismisses the ring. This replaces `pet.celebrate()` in `AppDelegate.ring`.
+  - `plugged()`: a stretch.
+- **Mealtime:** checked every 30 s.
+  - It triggers in hour 12 or 19, with the user active (any input in the last 60 s), once per meal per day. The key is `meal.<name>` in Guardia's defaults.
+  - The cat walks to the middle and begs for at most 25 minutes, with a balloon "lapar…" every minute.
+  - A click feeds (`eat`, then `purr`). While begging or alerting, the whole panel takes the click.
+- **Cursor:**
+  - Petting is the cursor moving over the body rect with no button down. 80 pt of stroking gives a purr; too long gives a `bite`, then `runAway()`.
+  - The laser game watches the last 1.2 s of cursor positions. It needs ≥ 3 x-reversals and ≥ 240 pt of travel, inside a band from 30 pt below the floor line to 150 pt above it, within 450 pt of the cat. Then comes `stalk`, then a 0.42 s leap to the cursor's x, then a swipe. The cooldown is 8 s, 20 s for her, and she ignores half the triggers.
+- **Perch:**
+  - `decide()` sometimes (6%) leaps onto the front window of the frontmost app. It must be at least 320×200, with its top below the screen top minus the cat's height.
+  - While perched, `groundOrigin()`/`bounds` come from the window's top edge.
+  - Every 0.5 s (and on Space or app changes) `checkPerch()` re-reads the window with `.optionIncludingWindow`. He gets down when the window moved, closed or left the screen, or when a layer-0 window of another app sits over his seat (`.optionOnScreenAboveWindow`). JankyBorders' `borders` windows and Guardia's own are ignored.
+- **`Balloon.swift`:** a native comic balloon. It uses `Ink.paperShape`, the island's paper and ink, Shantell Sans at 13 pt, and a tail to the top of the head (cell point (125, 34), mirrored). It follows the cat in `place()`.
+- **`Household.swift`:**
+  - It routes the mood and events to both cats. Every 4 s, both visible and free, with a 90 s quiet after each game, it may start a game:
+    - chase: 7%, not in rain, heat or on low battery;
+    - groom: 6%, or 13% when chasing is off;
+    - swat Maestra's napping tail: 12%. She startles, then chases him.
+  - When both are really asleep, she lies down by his side (back to back).
+  - When both perch close on one window, the newcomer swats the other off.
+- **Wiring:**
+  - `ClaudeSessions` now reads every session (`Record`). `onWork(busy, done)` reports a session that was busy for ≥ 30 s and then stopped; the monitor still lists only Remote Control sessions.
+  - The wallpaper page posts `thunder` with each storm flash. Lightning only flashes when not on low power, and `WallpaperController.onThunder` is debounced to 3 s.
+  - Music, weather (`showWeather`, also used by `guardia://weather/<kind>`), power and load set the mood.
+- **Menu and routes:**
+  - The menu gets *Panggil Maestra* and a *Maestra* toggle (pref `maestra`), and the island search gets *Panggil Maestra*.
+  - Routes: `guardia://maestra/on|off|come`, and `guardia://pet/try/<thunder|claude|meal|feed|chase|groom|swat|plug|climb>`.
+  - `guardia://status` adds `maestra`, plus `household` (last game, mood).
+- `Guardia --snapshot` writes `pet.png` and `maestra.png` (one frame of each of the 21 animations) and `balloon0-2.png`.
+
+### Verified live (status and window list)
+- Thunder: startle, then back to `loaf` (it was raining).
+- `try/claude`: Maestro `meow`, balloon "meong! DESKTOP: giliranmu". Its window sat exactly over his head (x 944 = 880 + 125 × 0.56 − 6).
+- `try/meal`: both walked to the middle begging. `try/feed`: `eat` with "nyam nyam", then rest; `meal.*` stored.
+- Not verified on screen, because the agent can't move the user's cursor and the user was in full-screen Spaces: the laser game, petting, perching, and the pair games' looks. They are driven by the same state machine; `guardia://pet/try/…` shows each.
+
 ## Tools and gotchas
 
 - **swiftc is broken** by a stale CLT `module.modulemap`. `guardia-app/build.sh` works around it with a VFS overlay. Reinstall the app with: `launchctl bootout gui/$UID/id.guardia.app`, then copy `build/app/Guardia.app` to `~/Applications`, then `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/id.guardia.app.plist`. Copying while the agent runs fails, because launchd relaunches Guardia mid-copy.
@@ -370,8 +435,9 @@ The user found the room too full and the widgets too small to read. Measured on 
 
 ## Next steps
 
-1. Wait for the user's feedback on round 10. Things to watch: the iPhone dial (needs Finder's Wi-Fi option), the location prompt, and whether the Claude session file format changes. Earlier likely follow-ups:
+1. Wait for the user's feedback on round 12 (Maestra and the interactions): how the laser, petting, perching and the pair games feel; how often they play (`Household.tick` odds, the 90 s quiet); whether mealtime at 12 and 19 suits them.
+2. Earlier: wait for the user's feedback on round 10. Things to watch: the iPhone dial (needs Finder's Wi-Fi option), the location prompt, and whether the Claude session file format changes. Earlier likely follow-ups:
    - the island's behaviour behind maximised windows;
    - more sites for focus mode (`FocusGuard.sites`);
    - a global hotkey, if they change their mind (Carbon `RegisterEventHotKey` needs no permission).
-2. Still open: no live screenshot of the island or borders exists, so how they look on screen can only be judged by the user.
+3. Still open: no live screenshot of the island or borders exists, so how they look on screen can only be judged by the user.

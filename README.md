@@ -1,13 +1,13 @@
 # Guardia
 
-Desktop Mac ini sekarang adalah satu ruangan yang digambar seperti **komik yang dicetak di kertas tua** (lihat [DESIGN.md](DESIGN.md)). Cahaya di ruangan mengikuti matahari dan cuaca sungguhan di tempatmu. Kamarnya kecil dan dilihat dari dekat, supaya yang penting terbaca dari seberang layar. Barang-barangnya ikut hidup: catatanmu dan kotak-kotak hijau GitHub di papan tulis, kalender sobek, sesi Claude di layar komputer, jarum baterai, lampu lalu lintas yang menunjukkan seberapa sibuk Mac, foto-fotomu di rak, piringan hitam yang sedang diputar, dan Maestro, kucing oren yang tinggal di lantai.
+Desktop Mac ini sekarang adalah satu ruangan yang digambar seperti **komik yang dicetak di kertas tua** (lihat [DESIGN.md](DESIGN.md)). Cahaya di ruangan mengikuti matahari dan cuaca sungguhan di tempatmu. Kamarnya kecil dan dilihat dari dekat, supaya yang penting terbaca dari seberang layar. Barang-barangnya ikut hidup: catatanmu dan kotak-kotak hijau GitHub di papan tulis, kalender sobek, sesi Claude di layar komputer, jarum baterai, lampu lalu lintas yang menunjukkan seberapa sibuk Mac, foto-fotomu di rak, piringan hitam yang sedang diputar, dan dua kucing yang tinggal di lantai: Maestro yang oren dan Maestra yang tuxedo.
 
 ## Isinya
 
 | Bagian | Apa | Di mana |
 |---|---|---|
 | Wallpaper hidup | Ruangan 3D yang dirender di **Blender** dengan shading cel (5 tingkat cahaya), garis tinta Freestyle yang dicetak paling akhir (tidak tertutup kabut berkas cahaya), dan grade cetak pudar. Ada 42 gambar sepanjang hari: pagi cahaya dingin dari jendela timur, sore berkas sinar matahari masuk lewat jendela sampai ke karpet dengan debu berkilau di dalamnya, malam lampu belajar yang berpendar dan lampu tumblr. Ditambah 6 gambar mendung untuk hari berawan atau hujan: tanpa berkas cahaya, ruangan sejuk. Kalender sobek (lengkap dengan pasaran Jawa), sampul lagu Spotify, foto-foto di rak, dan widget-widget kamar dicetak live di atasnya (lihat **Kamar** di bawah) | `blender/`, `wallpaper/` |
-| Maestro | Kucing oren chibi bergaya tinta, satu siluet utuh. Jalan-jalan di lantai di setiap desktop (disembunyikan saat ada app layar penuh di depan), tidur kalau kamu tinggal, menepuk-nepuk saat kamu mengetik, mendengkur kalau diklik. Saat mode fokus, dia menjaga Chrome | `pet/`, `guardia-app/Sources/Pet.swift` |
+| Maestro dan Maestra | Dua kucing chibi bergaya tinta: Maestro oren yang sibuk, Maestra tuxedo yang pemalas. Jalan-jalan di lantai di setiap desktop (disembunyikan saat ada app layar penuh di depan), ikut suasana (hujan, musik, baterai, Mac panas, Claude bekerja), main berdua, naik ke atas jendela. Saat mode fokus, Maestro menjaga Chrome | `pet/`, `guardia-app/Sources/Pet.swift`, `Household.swift` |
 | Dynamic island | Tab kertas di tengah atas: jam, dengan lagu atau timer di sampingnya; baterai hanya muncul saat tinggal ≤20% dan tidak dicas. Klik untuk membuka menu dan pencarian: Claude Code, Catatan, Rak foto, VS Code, Spotify, Timer, Alarm, Mode fokus | `guardia-app/Sources/Island.swift`, `Launcher.swift` |
 | Border jendela | Garis tinta di jendela aktif, garis pudar di jendela lain (JankyBorders) | `dotfiles/borders/` |
 | Tema app | VS Code (Kertas / Kertas Malam), Ghostty, Spotify (Spicetify), Chrome | `dotfiles/` |
@@ -36,12 +36,35 @@ Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tok
 - Klik kanan island untuk menu.
 - Saat ada jendela yang dimaksimalkan atau aplikasi layar penuh, island yang sedang diam turun ke belakang supaya tidak menutupi judul jendela. Island maju lagi kalau ada lagu baru, notifikasi, alarm, atau timer selesai, atau saat kamu memanggilnya (⌃Space, tepi atas).
 
-**Maestro**
-- Di aplikasi layar penuh Maestro disembunyikan, kecuali di Chrome: di sana dia tetap menemani (dan menjaga tab saat mode fokus) sambil berjalan di dasar layar, karena Dock sedang tersembunyi.
-- Klik untuk mengelus (dia mendengkur). Seret untuk mengangkatnya, lalu lepas dan dia jatuh ke lantai.
-- Saat kamu mengetik, dia menepuk-nepuk. Kalau Mac tidak disentuh 2 menit, dia tidur, lalu bangun sambil meregang.
-- Menu kucing → *Panggil Maestro* membuatnya berjalan ke arah kursor.
-- **Mode fokus:** begitu tab Chrome yang sedang kamu lihat adalah Instagram, TikTok, YouTube, atau X, Maestro melompat ke tab itu dan langsung mencakarnya sampai tertutup, kira-kira sedetik. Island memberi tahu situs apa yang ditutup. Kalau Maestro sedang tidak terlihat (dimatikan, atau Chrome dalam layar penuh), tabnya langsung ditutup tanpa lompatan.
+**Maestro dan Maestra**
+- Maestro oren dan sibuk. Maestra tuxedo, sedikit lebih kecil, dan pemalas: lebih cepat tidur, suka tidur siang (mengetik tidak membangunkannya), jarang jalan, dan tidak ikut menepuk-nepuk.
+- Di aplikasi layar penuh mereka disembunyikan, kecuali di Chrome: di sana mereka tetap menemani (Maestro menjaga tab saat mode fokus) sambil berjalan di dasar layar, karena Dock sedang tersembunyi.
+- Klik untuk mengelus (mendengkur). Seret untuk mengangkat, lalu lepas dan dia jatuh ke lantai.
+- Saat kamu mengetik, Maestro menepuk-nepuk. Kalau Mac tidak disentuh (Maestra 1 menit, Maestro 2 menit), mereka tidur, lalu bangun sambil meregang.
+- Menu kucing → *Panggil Maestro* / *Panggil Maestra* membuatnya berjalan ke arah kursor. Masing-masing bisa dimatikan sendiri di menu itu.
+
+Mereka ikut yang sedang terjadi di Mac:
+- **Claude bekerja:** Maestro duduk mengawasi layar. Begitu sebuah sesi Claude Code yang sudah bekerja 30 detik lebih mengembalikan giliran, dia mengeong dengan balon *"meong! NAMA: giliranmu"*.
+- **Hujan:** keduanya duduk meringkuk dan malas jalan. **Petir:** setiap kilat di jendela kamar membuat mereka melompat kaget.
+- **Musik** (Spotify/Music diputar): kepala mengangguk-angguk, ada not balok melayang.
+- **Baterai ≤20% tanpa charger:** rebahan lemas dengan baterai kosong di atas kepala. Dicolok charger: bangun dan meregang.
+- **Mac kepanasan** (lampu lalu lintas merah): lidah melet, uap panas di atas kepala.
+- **Alarm atau timer berbunyi:** keduanya lari ke tengah layar dan mengeong (*"MEONG!"*) sampai kamu klik salah satu atau matikan di island.
+- **Jam makan** (sekitar jam 12 dan jam 19, saat kamu di depan Mac): mereka duduk di samping mangkuk enamel dan bilang *"lapar…"*. Klik kucingnya untuk memberi makan. Kalau 25 menit tidak diberi, mereka menyerah sampai jam makan berikutnya.
+
+Main denganmu:
+- **Laser:** goyang-goyangkan kursor ke kiri-kanan di dekat lantai di depan mereka. Mereka mengintai sambil menggoyangkan pantat, lalu menerkam kursornya.
+- **Elus:** usap kursor pelan di atas badannya (tanpa klik) dan dia mendengkur. Kelamaan (Maestro ±7 detik, Maestra ±12 detik), dia menggigit pelan lalu kabur.
+- **Naik jendela:** sesekali mereka melompat ke atas jendela yang sedang di depan, lalu duduk atau tidur di situ. Kalau jendelanya digeser, ditutup, atau tertutup jendela lain, mereka turun.
+
+Main berdua (kalau keduanya sedang santai):
+- kejar-kejaran;
+- yang satu menjilati kepala yang lain sementara yang dijilat mendengkur;
+- Maestro memukul-mukul ekor Maestra yang sedang tidur siang, lalu Maestra kaget dan balas mengejarnya;
+- saat kamu pergi, Maestra pindah dan tidur di samping Maestro;
+- kalau keduanya naik ke jendela yang sama, yang baru datang mendorong yang lain sampai jatuh.
+
+**Mode fokus:** begitu tab Chrome yang sedang kamu lihat adalah Instagram, TikTok, YouTube, atau X, Maestro melompat ke tab itu dan langsung mencakarnya sampai tertutup, kira-kira sedetik. Island memberi tahu situs apa yang ditutup. Kalau Maestro sedang tidak terlihat (dimatikan, atau tersembunyi karena ada app layar penuh lain di depan), tabnya langsung ditutup tanpa lompatan.
 
 **Kamar** (widget di wallpaper)
 - **Papan tulis** besar di atas meja, ditulis dengan kapur:
@@ -67,6 +90,8 @@ open -g guardia://focus/25        # mode fokus 25 menit
 open -g guardia://rest/5          # istirahat 5 menit
 open -g guardia://stop            # hentikan timer dan mode fokus
 open -g guardia://pet/come        # panggil Maestro (pet/on, pet/off)
+open -g guardia://maestra/come    # panggil Maestra (maestra/on, maestra/off)
+open -g guardia://pet/try/chase   # coba sekarang: thunder, claude, meal, feed, chase, groom, swat, plug, climb
 open -g guardia://wallpaper/off   # bekukan wallpaper jadi gambar diam (wallpaper/on untuk hidup lagi)
 open -g guardia://playpause       # play / pause musik
 open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json
@@ -85,7 +110,7 @@ open -g guardia://weather/rain    # coba cuaca di jendela (clear, partly, cloudy
   node scripts/preview.mjs --times 07:30,16:30,21:00                                                                  # lihat hasil akhirnya di build/preview/
   node scripts/preview.mjs --times 21:00 --query "demo=1&weather=rain"                                                # dengan widget contoh dan hujan
   ```
-- **Maestro**: `pet/poses.js`, lalu `node scripts/render-assets.mjs`.
+- **Maestro dan Maestra**: pose di `pet/poses.js`, bulu di `pet/cat.js` (`COATS`), lalu `node scripts/render-assets.mjs` (menulis `guardia-app/Resources/pet` dan `.../maestra`).
 
 ## Ikon app
 
@@ -109,7 +134,7 @@ open -g guardia://weather/rain    # coba cuaca di jendela (clear, partly, cloudy
 
 ## Izin
 
-- **Tidak** butuh Accessibility, Input Monitoring, atau Screen Recording. Reaksi mengetik Maestro cukup membaca "berapa detik sejak tombol terakhir ditekan".
+- **Tidak** butuh Accessibility, Input Monitoring, atau Screen Recording. Reaksi mengetik Maestro cukup membaca "berapa detik sejak tombol terakhir ditekan"; laser dan elusan cukup membaca posisi kursor.
 - macOS akan bertanya sekali untuk tiap app yang dikendalikan island. Pilih **OK**:
   - *"Guardia ingin mengontrol Spotify"*: saat island pertama kali membaca lagu atau menekan play/pause.
   - *"Guardia ingin mengontrol Ghostty"*: saat pertama kali membuka Claude Code.

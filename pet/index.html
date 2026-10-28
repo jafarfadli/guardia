@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<title>Maestro</title>
+<title>Maestro dan Maestra</title>
 <style>
   @font-face { font-family: "Shantell Sans"; src: url(../wallpaper/fonts/ShantellSans-latin.woff2) format("woff2"); font-weight: 300 800; }
   body { margin: 0; background: #E9DFC8; font: 600 14px "Shantell Sans", system-ui; color: #2B1C14; }
@@ -14,11 +14,13 @@
 <body>
 <div id="sheet"></div>
 <script type="module">
-import { drawCat } from './cat.js';
+import { drawCat, COATS } from './cat.js';
 import { ANIMS, CELL } from './poses.js';
 
 const q = new URLSearchParams(location.search);
 const S = Number(q.get('scale') || 2);
+// ?coat=maestra draws the tuxedo
+const coat = COATS[q.get('coat') || 'maestro'];
 
 // The room's print grade, applied per pixel so the pet matches the wallpaper.
 function grade(ctx, w, h) {
@@ -57,7 +59,7 @@ for (const [name, a] of Object.entries(ANIMS)) {
     ctx.save();
     ctx.translate(i * CELL.w * S, 0);
     ctx.scale(S, S);
-    drawCat(ctx, a.pose(i, a.frames));
+    drawCat(ctx, a.pose(i, a.frames), coat);
     ctx.restore();
   }
   grade(ctx, c.width, c.height);

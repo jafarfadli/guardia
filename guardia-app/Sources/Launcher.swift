@@ -31,6 +31,7 @@ final class Launcher {
     private let alarms: Alarms
     private let focus: FocusGuard
     private let pet: PetController
+    var maestra: PetController?
     let favorites = Favorites()
 
     init(music: NowPlaying, timer: FocusTimer, alarms: Alarms, focus: FocusGuard, pet: PetController) {
@@ -149,6 +150,9 @@ final class Launcher {
                                 hint: "⌘↵ hapus", alt: { [weak self] in self?.favorites.remove(f.uri) }) { [weak self] in self?.music.play(uri: f.uri) })
         }
         rows.append(Command(title: "Panggil Maestro", icon: .cat, keywords: "kucing cat maestro panggil sini") { [weak self] in self?.pet.comeHere() })
+        if let maestra, maestra.running {
+            rows.append(Command(title: "Panggil Maestra", icon: .cat, keywords: "kucing cat maestra panggil sini") { maestra.comeHere() })
+        }
         // app icons: offered up front when an update put an original icon back
         let lost = AppIcons.missing()
         if let repo = AppIcons.repo {

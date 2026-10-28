@@ -50,12 +50,18 @@ final class Widgets {
 // Claude Code keeps a record per running session in ~/.claude/sessions/<pid>.json: its name, a
 // status ("busy" while it works) and, while Remote Control is on, a bridgeSessionId. This is
 // Claude Code's own bookkeeping, not a promised format: when a field is missing the session is
-// simply left out.
+// simply left out. The room's monitor lists the Remote Control sessions; the cats watch them
+// all, and hear when one that worked a while hands the turn back.
 final class ClaudeSessions {
     struct Session: Equatable { let name: String; let running: Bool }
+    struct Record: Equatable { let pid: Int32; let name: String; let busy: Bool; let remote: Bool }
     var onChange: (([Session]) -> Void)?
+    /// Whether any session works now; and a name when one stops after working half a minute or more.
+    var onWork: ((_ busy: Bool, _ done: String?) -> Void)?
     private var timer: Timer?
     private var last: [Session]?
+    private var busySince: [Int32: Date] = [:]
+    private var wasBusy = false
     private let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/sessions")
 
     func start() {
@@ -67,25 +73,39 @@ final class ClaudeSessions {
     private func scan() {
         let dir = self.dir
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let list = ClaudeSessions.read(dir)
+            let records = ClaudeSessions.read(dir)
             DispatchQueue.main.async {
-                guard let self, list != self.last else { return }
-                self.last = list
-                self.onChange?(list)
+                guard let self else { return }
+                let list = records.filter(\.remote).map { Session(name: $0.name, running: $0.busy) }
+                if list != self.last { self.last = list; self.onChange?(list) }
+                self.follow(records)
             }
         }
     }
 
-    static func read(_ dir: URL) -> [Session] {
+    private func follow(_ records: [Record]) {
+        var done: String?
+        for r in records {
+            if r.busy { if busySince[r.pid] == nil { busySince[r.pid] = Date() } }
+            else if let since = busySince.removeValue(forKey: r.pid), Date().timeIntervalSince(since) >= 30 { done = r.name }
+        }
+        // a session that quit while busy is just gone
+        let alive = Set(records.map(\.pid))
+        busySince = busySince.filter { alive.contains($0.key) }
+        let busy = !busySince.isEmpty
+        if busy != wasBusy || done != nil { wasBusy = busy; onWork?(busy, done) }
+    }
+
+    static func read(_ dir: URL) -> [Record] {
         let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
-        var out: [Session] = []
+        var out: [Record] = []
         for f in files where f.pathExtension == "json" {
             guard let d = try? Data(contentsOf: f), let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-                  let bridge = j["bridgeSessionId"] as? String, !bridge.isEmpty,
                   let pid = (j["pid"] as? NSNumber)?.int32Value, alive(pid) else { continue }
             let cwd = (j["cwd"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent } ?? "claude"
             let name = (j["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? cwd
-            out.append(Session(name: name, running: (j["status"] as? String) == "busy"))
+            let remote = !((j["bridgeSessionId"] as? String) ?? "").isEmpty
+            out.append(Record(pid: pid, name: name, busy: (j["status"] as? String) == "busy", remote: remote))
         }
         return out.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }

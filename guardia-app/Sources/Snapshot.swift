@@ -63,16 +63,25 @@ enum Snapshot {
         shot("ring") { isl.ring(title: "Alarm 07.30", subtitle: "bangun", action: ("tunda 5 menit", {}), dismiss: {}) }
         isl.endRing()
 
-        // Maestro: one frame from each animation on paper, to check how the sheets are sliced
-        let picks = [("idle", 0), ("walk", 0), ("walk", 6), ("tap", 1), ("purr", 3), ("sleep", 0), ("stretch", 5), ("dangle", 2), ("swipe", 3)]
-        let cats = picks.compactMap { delegate.pet.snapshot($0.0, frame: $0.1) }
-        if let c0 = cats.first, let strip = CGContext(data: nil, width: c0.width * cats.count, height: c0.height, bitsPerComponent: 8, bytesPerRow: 0,
-                                                     space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+        // the cats: one frame from each animation on paper, to check how the sheets are sliced
+        let picks = [("idle", 0), ("walk", 6), ("tap", 1), ("purr", 3), ("sleep", 0), ("stretch", 5), ("dangle", 2), ("swipe", 3),
+                     ("watch", 0), ("meow", 3), ("loaf", 6), ("startle", 2), ("bob", 2), ("flop", 0), ("hot", 1), ("stalk", 2),
+                     ("bite", 2), ("beg", 3), ("eat", 2), ("groom", 1)]
+        for (file, cat) in [("pet.png", delegate.pet), ("maestra.png", delegate.maestra)] {
+            let cats = picks.compactMap { cat.snapshot($0.0, frame: $0.1) }
+            guard let c0 = cats.first, let strip = CGContext(data: nil, width: c0.width * 10, height: c0.height * 2, bitsPerComponent: 8, bytesPerRow: 0,
+                                                             space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { continue }
             strip.setFillColor(NSColor(srgbRed: 0xE9 / 255, green: 0xDF / 255, blue: 0xC8 / 255, alpha: 1).cgColor)
             strip.fill(CGRect(x: 0, y: 0, width: strip.width, height: strip.height))
-            for (n, c) in cats.enumerated() { strip.draw(c, in: CGRect(x: n * c0.width, y: 0, width: c0.width, height: c0.height)) }
+            for (n, c) in cats.enumerated() { strip.draw(c, in: CGRect(x: (n % 10) * c0.width, y: (1 - n / 10) * c0.height, width: c0.width, height: c0.height)) }
             if let img = strip.makeImage() {
-                try? NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])?.write(to: out.appendingPathComponent("pet.png"))
+                try? NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])?.write(to: out.appendingPathComponent(file))
+            }
+        }
+        // the balloons
+        for (n, text) in ["meong! DESKTOP: giliranmu", "lapar…", "MEONG!"].enumerated() {
+            if let img = Balloon.image(text) {
+                try? NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])?.write(to: out.appendingPathComponent("balloon\(n).png"))
             }
         }
 

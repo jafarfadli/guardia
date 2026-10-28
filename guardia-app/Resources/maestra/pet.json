@@ -1,0 +1,115 @@
+{
+  "cell": {
+    "w": 200,
+    "h": 160,
+    "groundY": 150,
+    "scale": 2
+  },
+  "anims": {
+    "walk": {
+      "frames": 12,
+      "fps": 12,
+      "loop": true
+    },
+    "idle": {
+      "frames": 16,
+      "fps": 6,
+      "loop": true
+    },
+    "tap": {
+      "frames": 6,
+      "fps": 12,
+      "loop": true
+    },
+    "purr": {
+      "frames": 12,
+      "fps": 10,
+      "loop": true
+    },
+    "sleep": {
+      "frames": 12,
+      "fps": 4,
+      "loop": true
+    },
+    "dangle": {
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    "stretch": {
+      "frames": 10,
+      "fps": 9,
+      "loop": false
+    },
+    "leap": {
+      "frames": 6,
+      "fps": 14,
+      "loop": false
+    },
+    "swipe": {
+      "frames": 6,
+      "fps": 12,
+      "loop": false
+    },
+    "watch": {
+      "frames": 12,
+      "fps": 6,
+      "loop": true
+    },
+    "meow": {
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    "loaf": {
+      "frames": 12,
+      "fps": 4,
+      "loop": true
+    },
+    "startle": {
+      "frames": 8,
+      "fps": 12,
+      "loop": false
+    },
+    "bob": {
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    "flop": {
+      "frames": 8,
+      "fps": 3,
+      "loop": true
+    },
+    "hot": {
+      "frames": 8,
+      "fps": 6,
+      "loop": true
+    },
+    "stalk": {
+      "frames": 8,
+      "fps": 10,
+      "loop": true
+    },
+    "bite": {
+      "frames": 6,
+      "fps": 12,
+      "loop": false
+    },
+    "beg": {
+      "frames": 12,
+      "fps": 6,
+      "loop": true
+    },
+    "eat": {
+      "frames": 12,
+      "fps": 8,
+      "loop": true
+    },
+    "groom": {
+      "frames": 12,
+      "fps": 8,
+      "loop": true
+    }
+  }
+}

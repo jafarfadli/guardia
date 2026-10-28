@@ -1,29 +1,54 @@
 import AppKit
 
-// Maestro lives on the floor line (the top of the Dock, or the bottom of the screen when the
-// Dock hides). Sprites come from pet/ (rendered by scripts/render-assets.mjs).
+// Maestro and Maestra live on the floor line (the top of the Dock, or the bottom of the screen
+// when the Dock hides), and now and then on top of a window. Sprites come from pet/ (rendered by
+// scripts/render-assets.mjs): one set of poses, two coats. How they rest follows what goes on
+// around them (Mood); Household (Household.swift) has the two of them play together.
 final class PetController {
+    /// Who this is: the sprites, the size, the temper.
+    struct Cat {
+        let name: String
+        let sprites: String
+        let scale: CGFloat
+        // Maestra: sleeps sooner and naps through typing, walks less, plays no bongo, puts up
+        // with petting longer, leaves Claude to Maestro
+        let lazy: Bool
+        static let maestro = Cat(name: "Maestro", sprites: "pet", scale: 0.56, lazy: false)
+        static let maestra = Cat(name: "Maestra", sprites: "maestra", scale: 0.52, lazy: true)
+    }
+    /// What goes on around them: it changes how they rest, and whether they bother to walk.
+    struct Mood: Equatable { var rain = false, music = false, lowBattery = false, hot = false, claude = false }
+
     // One sheet per animation; frames are picked with contentsRect so the sheet uploads once.
     struct Anim { let sheet: CGImage; let count: Int; let fps: Double; let loop: Bool }
-    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch, leap, swipe }
+    enum State { case idle, walk, sleep, tap, purr, dangle, fall, stretch, leap, swipe, meow, startle, stalk, bite, beg, eat, groom }
+    private enum Jump { case tab, laser, perch(CGWindowID, CGRect) }
 
+    let cat: Cat
     private let panel: NSPanel
     private let view: PetView
     private let sprite = CALayer()
+    private let balloon = Balloon()
     private var anims: [String: Anim] = [:]
     private var cell = CGSize(width: 200, height: 160)
     private var cellGround: CGFloat = 150
-    private let scale: CGFloat = 0.56
+    private var scale: CGFloat { cat.scale }
     private(set) var state: State = .idle
     private var anim = "idle"
     private var frame = 0
     private var frameClock: Double = 0
     private var pos = CGPoint(x: 300, y: 0)   // window origin, screen coords
-    private var facing: CGFloat = 1
+    private(set) var facing: CGFloat = 1
     private var targetX: CGFloat = 300
     private var until = Date().addingTimeInterval(4)
     private var lastKeyIdle: Double = 1e9
     private var vy: CGFloat = 0
+    // a hop off the floor (thunder)
+    private var lift: CGFloat = 0, liftV: CGFloat = 0
+    // walking pace: 1, more when running
+    private var speed: CGFloat = 1
+    // what to do on arriving where the walk goes (Household, mealtime, the alarm)
+    private var afterWalk: (() -> Void)?
     private var loop: Timer?
     private var last = CACurrentMediaTime()
     private var hiddenForFullScreen = false
@@ -31,13 +56,31 @@ final class PetController {
     // edge: full screen hides the Dock, though the screen still reports room kept for it
     private var noDock = false
     private var fullScreenClock: Double = 0
-    // focus mode: one leap from where he is onto a Chrome tab, a swipe up there, the fall back
-    private var pounce: (from: CGPoint, to: CGPoint, t0: Double, dur: Double)?
+    // one leap from where he is: onto a Chrome tab (focus mode), at the cursor, onto a window
+    private var pounce: (from: CGPoint, to: CGPoint, t0: Double, dur: Double, kind: Jump)?
     private var onHit: (() -> Void)?
     private var swipingUp = false
+    // on top of a window: its id and frame (screen coords), while it stays put and uncovered
+    private(set) var perch: (id: CGWindowID, rect: CGRect)?
+    private var perchClock: Double = 0
+    // asleep for a while whatever the keyboard does (a nap, a sleep on a window)
+    private(set) var napping = false
+    // the alarm rang: he meows until it is dismissed (a click on him dismisses it)
+    private var alerting: (() -> Void)?
+    private var begging = false
+    private var begUntil = Date()
+    private var mealKey = ""
+    private var mealClock: Double = 25
+    private var nextShout: Double = 0
+    var mood = Mood() { didSet { if mood != oldValue { moodChanged() } } }
+    /// He landed on a window (Household: two cats, one window).
+    var onPerch: ((PetController) -> Void)?
     var size: CGSize { CGSize(width: cell.width * scale, height: cell.height * scale) }
+    // from the window's bottom edge down to the paws
+    private var feet: CGFloat { (cell.height - cellGround) * scale }
 
-    init() {
+    init(cat: Cat = .maestro) {
+        self.cat = cat
         panel = NSPanel(contentRect: CGRect(x: 0, y: 0, width: 112, height: 90), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -59,7 +102,7 @@ final class PetController {
     }
 
     private func loadSprites() {
-        guard let dir = Bundle.main.resourceURL?.appendingPathComponent("pet"),
+        guard let dir = Bundle.main.resourceURL?.appendingPathComponent(cat.sprites),
               let data = try? Data(contentsOf: dir.appendingPathComponent("pet.json")),
               let meta = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let c = meta["cell"] as? [String: Any], let list = meta["anims"] as? [String: [String: Any]] else { return }
@@ -83,7 +126,8 @@ final class PetController {
         view.frame = CGRect(origin: .zero, size: s)
         sprite.frame = view.bounds
         let g = groundOrigin()
-        pos = CGPoint(x: (screen.visibleFrame.minX + screen.visibleFrame.maxX) / 2 + 160, y: g)
+        // he starts right of the middle, she left of it
+        pos = CGPoint(x: (screen.visibleFrame.minX + screen.visibleFrame.maxX) / 2 + (cat.lazy ? -220 : 160), y: g)
         place()
         hiddenForFullScreen = false
         panel.orderFrontRegardless()
@@ -105,6 +149,7 @@ final class PetController {
             for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
                 nc.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                     self?.checkFullScreen()
+                    self?.checkPerch()
                     // the window list settles a moment after a space switch
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self?.checkFullScreen() }
                 }
@@ -120,6 +165,10 @@ final class PetController {
         watchdog?.invalidate(); watchdog = nil
         interval = 0
         landHit()
+        perch = nil
+        begging = false
+        alerting = nil
+        balloon.hide()
         panel.orderOut(nil)
     }
 
@@ -137,11 +186,11 @@ final class PetController {
             noDock = dockless
             floorCache = nil
             // a lower floor: he drops to it; a higher one: he is simply there
-            if dockless && ![.dangle, .fall, .leap].contains(state) && !swipingUp { vy = 0; set(.fall, for: 5) }
+            if dockless && ![.dangle, .fall, .leap].contains(state) && !swipingUp { perch = nil; vy = 0; set(.fall, for: 5) }
         }
         guard hide != hiddenForFullScreen else { return }
         hiddenForFullScreen = hide
-        if hide { landHit(); panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+        if hide { landHit(); perch = nil; balloon.hide(); panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
     private var seenFullScreen = "-"
 
@@ -201,10 +250,12 @@ final class PetController {
         return nil
     }
 
-    /// For `guardia://status`: what Maestro is doing and when his loop last ticked.
+    /// For `guardia://status`: what the cat is doing and when its loop last ticked.
     var debugState: [String: Any] {
-        ["running": running, "state": "\(state)", "x": Double(pos.x), "y": Double(pos.y), "lastTickAgo": CACurrentMediaTime() - last,
-         "hiddenForFullScreen": hiddenForFullScreen, "noDock": noDock, "fullScreen": seenFullScreen, "visible": panel.isVisible]
+        ["running": running, "state": "\(state)", "anim": anim, "x": Double(pos.x), "y": Double(pos.y), "lastTickAgo": CACurrentMediaTime() - last,
+         "hiddenForFullScreen": hiddenForFullScreen, "noDock": noDock, "fullScreen": seenFullScreen, "visible": panel.isVisible,
+         "perch": perch.map { Int($0.id) } ?? 0, "napping": napping, "begging": begging, "alerting": alerting != nil,
+         "balloon": balloon.text ?? "-"]
     }
 
     // 20 Hz while moving, 10 Hz otherwise (still quick enough to catch every keypress)
@@ -227,20 +278,125 @@ final class PetController {
         if let f = floorCache, now - f.at < 2 { return (f.ground, f.bounds) }
         let s = screen
         let floor = !noDock && s.visibleFrame.minY > s.frame.minY + 8 ? s.visibleFrame.minY : s.frame.minY + 2
-        let g = floor - (cell.height - cellGround) * scale
+        let g = floor - feet
         let b = (s.frame.minX + 8)...max(s.frame.minX + 9, s.frame.maxX - size.width - 8)
         floorCache = (g, b, now)
         return (g, b)
     }
-    private func groundOrigin() -> CGFloat { floorInfo().ground }
-    private var bounds: ClosedRange<CGFloat> { floorInfo().bounds }
+    // on a window, its top edge is the floor and its width the room to walk
+    private func groundOrigin() -> CGFloat { perch.map { $0.rect.maxY - feet } ?? floorInfo().ground }
+    private var bounds: ClosedRange<CGFloat> {
+        guard let p = perch else { return floorInfo().bounds }
+        let lo = p.rect.minX - size.width * 0.2
+        return lo...max(lo + 1, p.rect.maxX - size.width * 0.8)
+    }
+
+    // ------------------------------------------------------------------ for Household
+    var x: CGFloat { pos.x }
+    var visible: Bool { running && !hiddenForFullScreen }
+    var asleep: Bool { state == .sleep }
+    /// Not busy with anything: Household may have him play.
+    var free: Bool {
+        visible && perch == nil && grab == nil && alerting == nil && !begging && pounce == nil && afterWalk == nil && !swipingUp
+            && [.idle, .walk].contains(state)
+    }
+
+    /// Walk (or run) to `x`; `then` runs on arriving. Returns where he will stop.
+    @discardableResult
+    func go(to x: CGFloat, speed: CGFloat = 1, then: (() -> Void)? = nil) -> CGFloat {
+        if perch != nil { perch = nil }
+        napping = false
+        targetX = min(max(x, bounds.lowerBound), bounds.upperBound)
+        set(.walk, for: max(20, Double(abs(targetX - pos.x) / (27 * speed)) + 3))
+        self.speed = speed
+        afterWalk = then
+        return targetX
+    }
+
+    /// Play one animation for a while, facing `facing` (1 right, −1 left) if given.
+    func act(_ s: State, for seconds: Double, facing f: CGFloat? = nil) {
+        if let f { facing = f }
+        if s != .sleep { napping = false }
+        set(s, for: seconds)
+    }
+
+    // ------------------------------------------------------------------ what goes on around him
+    private func moodChanged() {
+        guard running else { return }
+        // stop walking in the rain, on an empty battery, in the heat
+        if state == .walk && afterWalk == nil && (mood.rain || mood.lowBattery || mood.hot) { set(.idle, for: 4) }
+        if state == .idle { set(.idle, for: max(1, until.timeIntervalSinceNow)) }
+    }
+
+    // resting looks different with what goes on: the first that holds wins
+    private var restAnim: String {
+        let pick = mood.lowBattery ? "flop" : mood.hot ? "hot" : mood.rain ? "loaf" : mood.music ? "bob" : mood.claude && !cat.lazy ? "watch" : "idle"
+        return anims[pick] != nil ? pick : "idle"
+    }
+
+    /// Lightning: a jump in fright.
+    func startle() {
+        guard visible, ![.dangle, .fall, .leap, .beg, .eat].contains(state), !swipingUp, onHit == nil else { return }
+        napping = false
+        afterWalk = nil
+        set(.startle, for: 0.75)
+        liftV = 340
+    }
+
+    /// A Claude session handed the turn back after working a while.
+    func handBack(_ name: String) {
+        guard visible, ![.dangle, .fall, .leap, .beg, .eat, .meow].contains(state), !swipingUp, alerting == nil else { return }
+        napping = false
+        set(.meow, for: 2.4)
+        say("meong! \(name): giliranmu", for: 6)
+    }
+
+    /// The charger went in: up and a stretch.
+    func plugged() {
+        guard visible, [.idle, .walk, .sleep].contains(state), !begging, alerting == nil else { return }
+        napping = false
+        set(.stretch, for: 1.1)
+    }
+
+    /// An alarm or a timer rang: to the middle of the screen, meowing until it is dismissed.
+    func alert(dismiss: @escaping () -> Void) {
+        guard running, !hiddenForFullScreen else { return }
+        alerting = dismiss
+        begging = false
+        if perch != nil { getDown() } else if ![.dangle, .fall, .leap].contains(state) && !swipingUp { answerAlert() }
+    }
+    func alertEnd() {
+        guard alerting != nil else { return }
+        alerting = nil
+        balloon.hide()
+        if state == .meow || state == .walk { set(.idle, for: 3) }
+    }
+    private func answerAlert() {
+        let mid = screen.frame.midX - size.width / 2 + (cat.lazy ? 70 : -50)
+        go(to: mid, speed: 2.4) { [weak self] in self?.set(.meow, for: .infinity) }
+    }
+
+    /// A nap: asleep for a while whatever the keyboard does.
+    func nap(for seconds: Double) {
+        guard visible, perch == nil else { return }
+        afterWalk = nil
+        napping = true
+        set(.sleep, for: seconds)
+    }
+
+    /// guardia://pet/try/meal: ask for food now, whatever the time; …/feed: as a click on the bowl.
+    func askForFood() { mealKey = "coba"; beg() }
+    func feedNow() { if begging { feed() } }
+    /// guardia://pet/try/climb: up onto the window in front now, if there is one to sit on.
+    func climbNow() { if visible, perch == nil, [.idle, .walk].contains(state) { _ = climb() } }
 
     // ------------------------------------------------------------------ public nudges
     func celebrate() { if state != .dangle { set(.purr, for: 4) } }
     func comeHere() {
+        guard alerting == nil else { return }
+        if perch != nil { getDown(); return }
         let m = NSEvent.mouseLocation
-        targetX = min(max(m.x - size.width / 2, bounds.lowerBound), bounds.upperBound)
-        set(.walk, for: 30)
+        go(to: m.x - size.width / 2)
     }
 
     /// Focus mode closed a tab: a quick paw swipe where he stands.
@@ -255,16 +411,25 @@ final class PetController {
     func pounce(on feet: CGPoint, hit: @escaping () -> Void) -> Bool {
         guard running, !hiddenForFullScreen, panel.isOnActiveSpace, onHit == nil,
               screen.frame.insetBy(dx: 4, dy: 4).contains(feet), ![.dangle, .fall].contains(state) else { return false }
-        let to = CGPoint(x: feet.x - size.width / 2, y: feet.y - (cell.height - cellGround) * scale)
-        facing = to.x >= pos.x ? 1 : -1
+        perch = nil
+        lift = 0
+        let to = CGPoint(x: feet.x - size.width / 2, y: feet.y - self.feet)
         // quick: a third of a second for a short hop, never much more than half a second
         let dist = Double(hypot(to.x - pos.x, to.y - pos.y))
-        pounce = (pos, to, CACurrentMediaTime(), min(0.6, 0.28 + dist / 4000))
+        leap(to: to, kind: .tab, dur: min(0.6, 0.28 + dist / 4000))
         onHit = hit
         swipingUp = false
+        return true
+    }
+
+    private func leap(to: CGPoint, kind: Jump, dur: Double? = nil) {
+        facing = to.x >= pos.x ? 1 : -1
+        let dist = Double(hypot(to.x - pos.x, to.y - pos.y))
+        napping = false
+        afterWalk = nil
+        pounce = (pos, to, CACurrentMediaTime(), dur ?? min(0.9, 0.32 + dist / 2400), kind)
         set(.leap, for: 3)
         schedule(1.0 / 40)
-        return true
     }
 
     // whatever interrupts the pounce, the tab still goes
@@ -274,21 +439,28 @@ final class PetController {
         h?()
     }
 
+    // ------------------------------------------------------------------ the balloon
+    private func say(_ text: String, for seconds: Double) {
+        balloon.show(text, for: seconds)
+        placeBalloon()
+    }
+    private func placeBalloon() {
+        guard balloon.shown else { return }
+        // the top of the head: about (125, 40) in the cell, mirrored when facing left
+        let hx = facing > 0 ? 125 * scale : (cell.width - 125) * scale
+        balloon.place(pointingAt: CGPoint(x: pos.x + hx, y: pos.y + (cell.height - 34) * scale), toTheRight: facing > 0)
+    }
+
     // ------------------------------------------------------------------ state machine
     private func set(_ s: State, for seconds: Double) {
         state = s
         until = Date().addingTimeInterval(seconds)
+        if s != .walk { speed = 1; afterWalk = nil }
         let name: String
         switch s {
-        case .idle: name = "idle"
-        case .walk: name = "walk"
-        case .sleep: name = "sleep"
-        case .tap: name = "tap"
-        case .purr: name = "purr"
+        case .idle: name = restAnim
         case .dangle, .fall: name = "dangle"
-        case .stretch: name = "stretch"
-        case .leap: name = "leap"
-        case .swipe: name = "swipe"
+        default: name = anims["\(s)"] != nil ? "\(s)" : "idle"
         }
         if name != anim { anim = name; frame = 0; frameClock = 0 }
     }
@@ -312,24 +484,54 @@ final class PetController {
         let pressed = keyIdle + 0.0005 < lastKeyIdle || keyIdle < 0.02
         lastKeyIdle = keyIdle
         if pressed && keyIdle < 0.5 { onKey() }
+        feel(now: now, dt: dt)
+        mealClock += dt
+        if mealClock > 30 { mealClock = 0; checkMeal(anyIdle) }
+        if perch != nil { perchClock += dt; if perchClock > 0.5 { perchClock = 0; checkPerch() } }
 
         switch state {
         case .idle:
-            if anyIdle > 120 { set(.sleep, for: .infinity) }
+            if alerting != nil { answerAlert() }
+            else if begging { if Date() < begUntil { set(.beg, for: begUntil.timeIntervalSinceNow) } else { giveUpMeal() } }
+            else if anyIdle > (cat.lazy ? 60 : 120) { napping = false; set(.sleep, for: .infinity) }
             else if Date() > until { decide() }
         case .walk:
             let dir: CGFloat = targetX > pos.x ? 1 : -1
             facing = dir
-            pos.x += dir * 27 * CGFloat(dt)  // matches the stride of the 12-frame walk
-            if abs(targetX - pos.x) < 3 || Date() > until { set(.idle, for: Double.random(in: 4...9)) }
+            pos.x += dir * 27 * speed * CGFloat(dt)  // matches the stride of the 12-frame walk
+            if abs(targetX - pos.x) < 3 * speed || (targetX - pos.x) * dir < 0 {
+                pos.x = targetX
+                let then = afterWalk
+                set(.idle, for: Double.random(in: 4...9))
+                then?()
+            } else if Date() > until { set(.idle, for: 3) }
         case .sleep:
-            if anyIdle < 0.6 { set(.stretch, for: 1.1) }
+            if napping { if Date() > until { napping = false; set(.stretch, for: 1.1) } }
+            else if anyIdle < 0.6 { set(.stretch, for: 1.1) }
         case .tap:
             if Date() > until { set(.idle, for: Double.random(in: 3...6)) }
-        case .purr:
+        case .purr, .stretch, .groom:
             if Date() > until { set(.idle, for: 4) }
-        case .stretch:
-            if Date() > until { set(.idle, for: 3) }
+        case .eat:
+            if Date() > until { set(.purr, for: 3) }
+        case .bite:
+            if Date() > until { runAway() }
+        case .meow:
+            if alerting != nil {
+                if now > nextShout { nextShout = now + 4; say(cat.lazy ? "meong…" : "MEONG!", for: 2.2) }
+            } else if Date() > until { set(.idle, for: 3) }
+        case .beg:
+            if Date() > until { giveUpMeal() }
+            else if now > nextShout { nextShout = now + 60; say("lapar…", for: 5) }
+        case .startle:
+            liftV -= 2200 * CGFloat(dt)
+            lift = max(0, lift + liftV * CGFloat(dt))
+            if lift == 0 { liftV = 0 }
+            if Date() > until && lift == 0 { set(.idle, for: 3) }
+        case .stalk:
+            let m = NSEvent.mouseLocation
+            facing = m.x >= pos.x + size.width / 2 ? 1 : -1
+            if Date() > until { pounceAt(m.x) }
         case .dangle:
             break
         case .fall:
@@ -346,8 +548,21 @@ final class PetController {
             frame = min(5, Int(t * 6))
             if t >= 1 {
                 pos = p.to
-                swipingUp = true
-                set(.swipe, for: anims["swipe"].map { Double($0.count) / $0.fps } ?? 0.5)
+                let swipe = anims["swipe"].map { Double($0.count) / $0.fps } ?? 0.5
+                switch p.kind {
+                case .tab:
+                    swipingUp = true
+                    set(.swipe, for: swipe)
+                case .laser:
+                    pounce = nil
+                    set(.swipe, for: swipe)
+                case .perch(let id, let rect):
+                    pounce = nil
+                    perch = (id, rect)
+                    perchClock = 0
+                    set(.idle, for: 3)
+                    onPerch?(self)
+                }
             }
         case .swipe:
             if swipingUp, let p = pounce { pos = p.to }
@@ -358,13 +573,13 @@ final class PetController {
             }
         }
         let aloft = [.dangle, .fall, .leap].contains(state) || swipingUp
-        if !aloft { pos.y = groundOrigin(); pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound) }
+        if !aloft { pos.y = groundOrigin() + lift; pos.x = min(max(pos.x, bounds.lowerBound), bounds.upperBound) }
         fullScreenClock += dt
         if fullScreenClock > 2 { fullScreenClock = 0; checkFullScreen() }
 
-        // animate (taps advance per key instead of by time)
+        // animate (taps advance per key instead of by time; running turns the walk faster)
         if let a = anims[anim], state != .tap, state != .leap {
-            frameClock += dt
+            frameClock += dt * Double(state == .walk ? speed : 1)
             let step = 1 / a.fps
             while frameClock >= step {
                 frameClock -= step
@@ -374,13 +589,16 @@ final class PetController {
         place()
         hitTest()
         // asleep, one tick per breathing frame is enough to notice the first key or mouse move
-        schedule(state == .leap ? 1.0 / 40 : [.walk, .dangle, .fall, .swipe].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
+        schedule(state == .leap ? 1.0 / 40 : [.walk, .dangle, .fall, .swipe, .startle, .stalk].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
     }
 
     private func onKey() {
+        // bongo is his thing; she sleeps on
+        guard !cat.lazy else { return }
         switch state {
-        case .sleep: set(.stretch, for: 1.1)
+        case .sleep where !napping: set(.stretch, for: 1.1)
         case .idle, .walk, .tap:
+            guard afterWalk == nil, !begging, alerting == nil else { return }
             if state != .tap { set(.tap, for: 1.3) } else { until = Date().addingTimeInterval(1.3) }
             if let a = anims["tap"] { frame = (frame + 1) % a.count }
         default: break
@@ -390,11 +608,27 @@ final class PetController {
     private func decide() {
         let m = NSEvent.mouseLocation
         let r = Double.random(in: 0...1)
-        if m.y < groundOrigin() + 160, abs(m.x - pos.x) > 80, r < 0.35 {
+        // up on a window: a nap, a few steps, or back down
+        if perch != nil {
+            if r < 0.3 { napping = true; set(.sleep, for: Double.random(in: 60...180)) }
+            else if r < 0.55 { getDown() }
+            else if r < 0.75 { targetX = CGFloat.random(in: bounds); set(.walk, for: 12) }
+            else { set(.idle, for: Double.random(in: 6...12)) }
+            return
+        }
+        let restless = !(mood.rain || mood.lowBattery || mood.hot)
+        // she walks less; he walks less while he watches Claude work
+        let walky = (cat.lazy ? 0.45 : 1) * (mood.claude && !cat.lazy ? 0.5 : 1)
+        if cat.lazy && r < 0.06 {
+            napping = true
+            set(.sleep, for: Double.random(in: 90...240))
+        } else if restless && r > 0.94, climb() {
+            // up onto the window in front
+        } else if restless && m.y < groundOrigin() + 160, abs(m.x - pos.x) > 80, r < 0.35 * walky {
             // curious about the cursor near the floor
             targetX = min(max(m.x - size.width / 2, bounds.lowerBound), bounds.upperBound)
             set(.walk, for: 20)
-        } else if r < 0.7 {
+        } else if restless && r < 0.7 * walky {
             var t = CGFloat.random(in: bounds)
             if abs(t - pos.x) < 90 { t = pos.x + (t > pos.x ? 160 : -160) }
             targetX = min(max(t, bounds.lowerBound), bounds.upperBound)
@@ -404,6 +638,166 @@ final class PetController {
         }
     }
 
+    // ------------------------------------------------------------------ the cursor: petting, the laser game
+    private var lastMouse = CGPoint.zero
+    private var stroked: CGFloat = 0
+    private var petTime: Double = 0
+    private var lastStroke: Double = 0
+    private var trail: [(t: Double, p: CGPoint)] = []
+    private var playAgain: Double = 0
+
+    private var bodyRect: CGRect {
+        let f = panel.frame
+        return CGRect(x: f.minX + f.width * 0.18, y: f.minY + f.height * 0.06, width: f.width * 0.66, height: f.height * 0.62)
+    }
+
+    private func feel(now: Double, dt: Double) {
+        let m = NSEvent.mouseLocation
+        defer { lastMouse = m }
+        // petting: the cursor stroking over him, no button down
+        let over = bodyRect.contains(m) && NSEvent.pressedMouseButtons == 0 && grab == nil
+        let moved = hypot(m.x - lastMouse.x, m.y - lastMouse.y)
+        if over && moved > 0.5 { stroked += moved; lastStroke = now }
+        if now - lastStroke < 0.6 { petTime += dt } else if now - lastStroke > 1.5 { stroked = 0; petTime = 0 }
+        if stroked > 80 && now - lastStroke < 0.15 {
+            if state == .purr && petTime > (cat.lazy ? 12 : 7) {
+                // enough: a nip, then off
+                stroked = 0; petTime = 0
+                set(.bite, for: 0.5)
+                return
+            }
+            if [.idle, .walk, .tap].contains(state) && afterWalk == nil { set(.purr, for: 1.6) }
+            else if state == .purr { until = Date().addingTimeInterval(1.6) }
+        }
+
+        // the laser game: the cursor wiggling to and fro near the floor in front of him
+        trail.append((now, m))
+        trail.removeAll { now - $0.t > 1.2 }
+        guard now > playAgain, [.idle, .walk].contains(state), perch == nil, afterWalk == nil, alerting == nil, !begging, grab == nil,
+              !mood.lowBattery, !over, trail.count > 6 else { return }
+        let floorY = groundOrigin() + feet
+        guard abs(m.x - (pos.x + size.width / 2)) < 450, trail.allSatisfy({ $0.p.y < floorY + 150 && $0.p.y > floorY - 30 }) else { return }
+        var turns = 0, path: CGFloat = 0, lastDir: CGFloat = 0
+        for i in 1..<trail.count {
+            let dx = trail[i].p.x - trail[i - 1].p.x
+            path += abs(dx)
+            if abs(dx) > 3 {
+                let d: CGFloat = dx > 0 ? 1 : -1
+                if lastDir != 0 && d != lastDir { turns += 1 }
+                lastDir = d
+            }
+        }
+        guard turns >= 3, path > 240 else { return }
+        playAgain = now + (cat.lazy ? 20 : 8)
+        // she can't always be bothered
+        if cat.lazy && Double.random(in: 0...1) < 0.5 { return }
+        facing = m.x >= pos.x + size.width / 2 ? 1 : -1
+        set(.stalk, for: cat.lazy ? 1.6 : 1.1)
+    }
+
+    private func pounceAt(_ x: CGFloat) {
+        let tx = min(max(x - size.width / 2, bounds.lowerBound), bounds.upperBound)
+        leap(to: CGPoint(x: tx, y: groundOrigin()), kind: .laser, dur: 0.42)
+    }
+
+    private func runAway() {
+        let away: CGFloat = lastMouse.x > pos.x + size.width / 2 ? -1 : 1
+        go(to: pos.x + away * 300, speed: 2.4)
+    }
+
+    // ------------------------------------------------------------------ up on a window
+    private func climb() -> Bool {
+        guard let t = PetController.perchTarget(on: screen, size: size, avoidAbove: screen.frame.maxY - size.height - 12) else { return false }
+        let x = min(max(pos.x, t.rect.minX + 6), t.rect.maxX - size.width - 6)
+        leap(to: CGPoint(x: x, y: t.rect.maxY - feet), kind: .perch(t.id, t.rect))
+        return true
+    }
+
+    /// Off the window, down to the floor.
+    func getDown() {
+        guard perch != nil else { return }
+        perch = nil
+        napping = false
+        vy = 0
+        set(.fall, for: 5)
+    }
+
+    /// The front window of the app in front, when it's an ordinary one with room above it.
+    private static func perchTarget(on screen: NSScreen, size: CGSize, avoidAbove top: CGFloat) -> (id: CGWindowID, rect: CGRect)? {
+        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+              let main = NSScreen.screens.first,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
+        for w in list where (w[kCGWindowOwnerPID as String] as? Int32) == app.processIdentifier && (w[kCGWindowLayer as String] as? Int) == 0 {
+            guard let r = cocoaRect(w, main: main), let id = w[kCGWindowNumber as String] as? CGWindowID else { continue }
+            // the app's front window, or none: big enough, on this screen, its top below the screen's
+            guard r.width >= 320, r.height >= 200, screen.frame.intersects(r), r.maxY < top, r.maxY > screen.visibleFrame.minY + 140 else { return nil }
+            return (id, r)
+        }
+        return nil
+    }
+
+    private static func cocoaRect(_ w: [String: Any], main: NSScreen) -> CGRect? {
+        guard let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+        let h = b["Height"] ?? 0
+        return CGRect(x: b["X"] ?? 0, y: main.frame.maxY - (b["Y"] ?? 0) - h, width: b["Width"] ?? 0, height: h)
+    }
+
+    /// Still there, still where it was, nothing in front of where he sits? Otherwise down he goes.
+    private func checkPerch() {
+        guard let p = perch, let main = NSScreen.screens.first else { return }
+        guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], p.id) as? [[String: Any]])?.first,
+              (info[kCGWindowIsOnscreen as String] as? Bool) == true, let r = PetController.cocoaRect(info, main: main),
+              abs(r.minX - p.rect.minX) < 1, abs(r.maxY - p.rect.maxY) < 1, abs(r.width - p.rect.width) < 1 else { getDown(); return }
+        let seat = CGRect(x: pos.x + size.width * 0.2, y: p.rect.maxY, width: size.width * 0.6, height: size.height * 0.6)
+        let above = CGWindowListCopyWindowInfo([.optionOnScreenAboveWindow, .excludeDesktopElements], p.id) as? [[String: Any]] ?? []
+        let me = ProcessInfo.processInfo.processIdentifier
+        for w in above where (w[kCGWindowLayer as String] as? Int) == 0 && (w[kCGWindowOwnerPID as String] as? Int32) != me
+            && (w[kCGWindowOwnerName as String] as? String) != "borders" {
+            if let wr = PetController.cocoaRect(w, main: main), wr.intersects(seat) { getDown(); return }
+        }
+    }
+
+    // ------------------------------------------------------------------ mealtime
+    // At noon and at seven in the evening, while someone is at the Mac: by the bowl, asking.
+    private func checkMeal(_ anyIdle: Double) {
+        guard !begging, running, !hiddenForFullScreen, alerting == nil, perch == nil, afterWalk == nil,
+              [.idle, .walk].contains(state), anyIdle < 60, !mood.lowBattery else { return }
+        let c = Calendar.current.dateComponents([.year, .month, .day, .hour], from: Date())
+        guard let meal = c.hour == 12 ? "siang" : c.hour == 19 ? "malam" : nil else { return }
+        let key = "\(c.year ?? 0)-\(c.month ?? 0)-\(c.day ?? 0) \(meal)"
+        guard UserDefaults.standard.string(forKey: "meal.\(cat.name)") != key else { return }
+        mealKey = key
+        beg()
+    }
+
+    private func beg() {
+        begging = true
+        begUntil = Date().addingTimeInterval(25 * 60)
+        nextShout = 0
+        // up on a window: down first, and he asks where he lands
+        if perch != nil { getDown(); return }
+        let spot = screen.frame.midX - size.width / 2 + (cat.lazy ? 90 : -90)
+        go(to: spot, speed: 1.6) { [weak self] in
+            guard let self, self.begging else { return }
+            self.set(.beg, for: self.begUntil.timeIntervalSinceNow)
+        }
+    }
+
+    private func feed() {
+        begging = false
+        UserDefaults.standard.set(mealKey, forKey: "meal.\(cat.name)")
+        say("nyam nyam", for: 3)
+        set(.eat, for: 7)
+    }
+
+    private func giveUpMeal() {
+        begging = false
+        UserDefaults.standard.set(mealKey, forKey: "meal.\(cat.name)")
+        balloon.hide()
+        set(.idle, for: 4)
+    }
+
+    // ------------------------------------------------------------------ drawing
     private var shown: (anim: String, frame: Int, facing: CGFloat, pos: CGPoint) = ("", -1, 0, .zero)
     private func place() {
         // only touch the window server when something actually changed
@@ -419,7 +813,7 @@ final class PetController {
             sprite.setAffineTransform(CGAffineTransform(scaleX: facing, y: 1))
             CATransaction.commit()
         }
-        if shown.pos != p { panel.setFrameOrigin(p) }
+        if shown.pos != p || shown.facing != facing { panel.setFrameOrigin(p); placeBalloon() }
         shown = (anim, frame, facing, p)
     }
 
@@ -436,14 +830,14 @@ final class PetController {
         return ctx.makeImage()
     }
 
-    // Clicks only land on the cat itself; everywhere else passes through.
+    // Clicks only land on the cat itself; everywhere else passes through. Begging, or calling
+    // for the alarm, the whole of him (and the bowl) takes the click.
     private var passThrough = true
     private func hitTest() {
         var through = false
         if state != .dangle {
-            let f = panel.frame
-            let body = CGRect(x: f.minX + f.width * 0.18, y: f.minY + f.height * 0.06, width: f.width * 0.66, height: f.height * 0.62)
-            through = !body.contains(NSEvent.mouseLocation)
+            let whole = state == .beg || alerting != nil
+            through = !(whole ? panel.frame.insetBy(dx: 4, dy: 4) : bodyRect).contains(NSEvent.mouseLocation)
         }
         // each change is a window-server round trip, so only send real changes
         if through != passThrough { passThrough = through; panel.ignoresMouseEvents = through }
@@ -455,14 +849,21 @@ final class PetController {
     func mouseDown(at p: CGPoint) { grab = p; dragged = false }
     func mouseDragged() {
         guard grab != nil else { return }
-        if !dragged { dragged = true; swipingUp = false; landHit(); set(.dangle, for: .infinity) }
+        if !dragged {
+            dragged = true; swipingUp = false; landHit()
+            perch = nil; napping = false; lift = 0; begging = false
+            set(.dangle, for: .infinity)
+        }
         let m = NSEvent.mouseLocation
         // held by the scruff: the top of the head stays under the cursor
         pos = CGPoint(x: m.x - size.width / 2, y: m.y - size.height * 0.9)
         place()
     }
     func mouseUp() {
-        if dragged { vy = 0; set(.fall, for: 5) } else { set(.purr, for: 3.5) }
+        if dragged { vy = 0; set(.fall, for: 5) }
+        else if state == .beg { feed() }
+        else if let a = alerting { alerting = nil; balloon.hide(); a(); set(.purr, for: 3) }
+        else { set(.purr, for: 3.5) }
         grab = nil; dragged = false
     }
 }
