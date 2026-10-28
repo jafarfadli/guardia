@@ -357,7 +357,7 @@ The user found the room too full and the widgets too small to read. Measured on 
 The user asked for more interactions and a second cat. They agreed to every idea offered, named her **Maestra** (instead of the suggested "Tinta"), and chose a tuxedo coat, living on the desktop with Maestro.
 
 ### Art (`pet/cat.js`, `pet/poses.js`, `scripts/render-assets.mjs`)
-- One set of poses, two coats: `COATS.maestro` (orange tabby) and `COATS.maestra` (tuxedo: charcoal fur, white bib, socks, muzzle, and a blaze between the eyes; no stripes).
+- One set of poses, two coats: `COATS.maestro` (orange tabby) and `COATS.maestra` (tuxedo: charcoal fur, white where he is cream (belly, socks, muzzle), a blaze between the eyes, no stripes). A white bib on her chest was removed at the user's request: her white should match his cream.
 - Dark eyes and ink lines vanish on black fur. So Maestra's eyes get a yellow-green iris with a tall pupil, and her lids, closed eyes and whiskers use light `line`/`whisker` colours.
 - New eye modes: `wide` and `squint`. New mouth: `tongue`.
 - Twelve new animations:
@@ -388,7 +388,15 @@ The user asked for more interactions and a second cat. They agreed to every idea
   - A click feeds (`eat`, then `purr`). While begging or alerting, the whole panel takes the click.
 - **Cursor:**
   - Petting is the cursor moving over the body rect with no button down. 80 pt of stroking gives a purr; too long gives a `bite`, then `runAway()`.
-  - The laser game watches the last 1.2 s of cursor positions. It needs ≥ 3 x-reversals and ≥ 240 pt of travel, inside a band from 30 pt below the floor line to 150 pt above it, within 450 pt of the cat. Then comes `stalk`, then a 0.42 s leap to the cursor's x, then a swipe. The cooldown is 8 s, 20 s for her, and she ignores half the triggers.
+  - The laser game, as revised the same day: the user found it hit-and-miss, and Maestra never played.
+    - The old rule needed the cursor inside a band from 30 pt *below* the Dock's top to 150 pt above it, so the Dock itself didn't count. All 1.2 s of samples had to be in the band. The cat had to be idle or walking (not tapping, purring or napping). The cooldown was 8 s, and she ignored half the triggers at random with a 20 s cooldown.
+    - Now the strip runs from the screen's bottom edge, the Dock included, to 160 pt above the floor line, within 800 pt of the cat. Only the latest run of samples inside the strip counts, at most 1.5 s.
+    - `PetController.wiggles`: ≥ 3 x-reversals and ≥ 200 pt of travel. Tested against sample paths: deliberate wiggles pass; jitter, a pass along the Dock and back once, and a dive to the Dock don't.
+    - Idle, tapping, purring, an ordinary walk and a nap may all turn into play. A cat more than 420 pt away runs over first.
+    - The cat stalks 0.55 s (her 0.9 s), then leaps 0.42 s and lands with the paw (cell x 150) on the cursor (`leap(face:)` keeps the facing). It is ready again 2.5 s after the stalk began, so a steady wiggle gets pounce after pounce.
+    - While the cursor is in the strip near a cat, the tick runs at 20 Hz (`laserNear`), and a resting cat turns to face a moving cursor.
+    - Petting only counts slow strokes (< 500 pt/s), so a wiggle over the body is the laser.
+    - `guardia://pet/try/laser` wiggles a pretend cursor (`dot`) in front of each cat for 2.6 s through the same code. Live: both stalked, he pounced, she followed, and he pounced again.
 - **Perch:**
   - `decide()` sometimes (6%) leaps onto the front window of the frontmost app. It must be at least 320×200, with its top below the screen top minus the cat's height.
   - While perched, `groundOrigin()`/`bounds` come from the window's top edge.
@@ -415,7 +423,7 @@ The user asked for more interactions and a second cat. They agreed to every idea
 - Thunder: startle, then back to `loaf` (it was raining).
 - `try/claude`: Maestro `meow`, balloon "meong! DESKTOP: giliranmu". Its window sat exactly over his head (x 944 = 880 + 125 × 0.56 − 6).
 - `try/meal`: both walked to the middle begging. `try/feed`: `eat` with "nyam nyam", then rest; `meal.*` stored.
-- Not verified on screen, because the agent can't move the user's cursor and the user was in full-screen Spaces: the laser game, petting, perching, and the pair games' looks. They are driven by the same state machine; `guardia://pet/try/…` shows each.
+- Not verified on screen, because the agent can't move the user's cursor and the user was mostly in full-screen Spaces: petting, perching, and the pair games' looks. They are driven by the same state machine; `guardia://pet/try/…` shows each. (The laser was verified later with `try/laser`, see above.)
 
 ## Tools and gotchas
 

@@ -140,7 +140,7 @@ final class Household {
         quietUntil = Date().addingTimeInterval(90)
     }
 
-    /// guardia://pet/try/<what>: show one now (thunder, claude, meal, feed, chase, groom, swat, plug, climb).
+    /// guardia://pet/try/<what>: show one now (thunder, claude, meal, feed, chase, groom, swat, plug, climb, laser).
     func show(_ what: String) {
         switch what {
         case "thunder": thunder()
@@ -148,6 +148,7 @@ final class Household {
         case "meal": maestro.askForFood(); maestra.askForFood()
         case "feed": maestro.feedNow(); maestra.feedNow()
         case "climb": maestro.climbNow()
+        case "laser": maestro.playLaser(); maestra.playLaser()
         case "chase": chase()
         case "groom": groom()
         case "swat": maestra.nap(for: 60); swatTail()

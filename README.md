@@ -37,7 +37,7 @@ Semua warna berasal dari satu daftar material: [`design/tokens.json`](design/tok
 - Saat ada jendela yang dimaksimalkan atau aplikasi layar penuh, island yang sedang diam turun ke belakang supaya tidak menutupi judul jendela. Island maju lagi kalau ada lagu baru, notifikasi, alarm, atau timer selesai, atau saat kamu memanggilnya (⌃Space, tepi atas).
 
 **Maestro dan Maestra**
-- Maestro oren dan sibuk. Maestra tuxedo, sedikit lebih kecil, dan pemalas: lebih cepat tidur, suka tidur siang (mengetik tidak membangunkannya), jarang jalan, dan tidak ikut menepuk-nepuk.
+- Maestro oren dan sibuk. Maestra tuxedo (hitam, putih di tempat yang sama dengan krem Maestro, plus garis putih di dahi), sedikit lebih kecil, dan pemalas: lebih cepat tidur, suka tidur siang (mengetik tidak membangunkannya), jarang jalan, dan tidak ikut menepuk-nepuk.
 - Di aplikasi layar penuh mereka disembunyikan, kecuali di Chrome: di sana mereka tetap menemani (Maestro menjaga tab saat mode fokus) sambil berjalan di dasar layar, karena Dock sedang tersembunyi.
 - Klik untuk mengelus (mendengkur). Seret untuk mengangkat, lalu lepas dan dia jatuh ke lantai.
 - Saat kamu mengetik, Maestro menepuk-nepuk. Kalau Mac tidak disentuh (Maestra 1 menit, Maestro 2 menit), mereka tidur, lalu bangun sambil meregang.
@@ -53,7 +53,7 @@ Mereka ikut yang sedang terjadi di Mac:
 - **Jam makan** (sekitar jam 12 dan jam 19, saat kamu di depan Mac): mereka duduk di samping mangkuk enamel dan bilang *"lapar…"*. Klik kucingnya untuk memberi makan. Kalau 25 menit tidak diberi, mereka menyerah sampai jam makan berikutnya.
 
 Main denganmu:
-- **Laser:** goyang-goyangkan kursor ke kiri-kanan di dekat lantai di depan mereka. Mereka mengintai sambil menggoyangkan pantat, lalu menerkam kursornya.
+- **Laser:** bagian bawah layar adalah lantainya, dari tepi paling bawah (di atas Dock juga boleh) sampai kira-kira 160 pt di atas Dock. Gerakkan kursor di situ dekat mereka dan mereka menoleh ke kursor. Goyangkan ke kiri-kanan (tiga kali bolak-balik) dan mereka mengintai sambil menggoyangkan pantat, lalu menerkam dengan kaki mendarat di kursor. Selama kursor terus bergoyang, mereka terus menerkam. Kucing yang jauh berlari mendekat dulu. Maestra ikut main, sedikit lebih lambat, dan laser membangunkannya dari tidur siang.
 - **Elus:** usap kursor pelan di atas badannya (tanpa klik) dan dia mendengkur. Kelamaan (Maestro ±7 detik, Maestra ±12 detik), dia menggigit pelan lalu kabur.
 - **Naik jendela:** sesekali mereka melompat ke atas jendela yang sedang di depan, lalu duduk atau tidur di situ. Kalau jendelanya digeser, ditutup, atau tertutup jendela lain, mereka turun.
 
@@ -91,7 +91,7 @@ open -g guardia://rest/5          # istirahat 5 menit
 open -g guardia://stop            # hentikan timer dan mode fokus
 open -g guardia://pet/come        # panggil Maestro (pet/on, pet/off)
 open -g guardia://maestra/come    # panggil Maestra (maestra/on, maestra/off)
-open -g guardia://pet/try/chase   # coba sekarang: thunder, claude, meal, feed, chase, groom, swat, plug, climb
+open -g guardia://pet/try/laser   # coba sekarang: laser, thunder, claude, meal, feed, chase, groom, swat, plug, climb
 open -g guardia://wallpaper/off   # bekukan wallpaper jadi gambar diam (wallpaper/on untuk hidup lagi)
 open -g guardia://playpause       # play / pause musik
 open -g guardia://status          # tulis keadaan app ke ~/.guardia/status.json

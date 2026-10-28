@@ -1,5 +1,5 @@
 // Maestro and Maestra, chibi edition, drawn in the room's ink: he a round orange tabby, she a
-// tuxedo (black, with a white bib, socks, muzzle and a blaze between the eyes).
+// tuxedo (black, white where he is cream: belly, socks, muzzle; and a blaze between the eyes).
 // The whole cat is one silhouette: every part is inked first with a wide stroke, then all parts
 // are filled on top, so only the outer contour keeps its ink and nothing looks bolted on.
 import { catmull, stroke, setInk } from '../wallpaper/src/ink.js';
@@ -161,11 +161,6 @@ function buildParts(pose) {
         fill(ctx, ellipse(add(c, rot([b.rx * 0.15, b.ry * 0.62], b.a ?? 0)), b.rx * 0.78, b.ry * 0.5, b.a ?? 0), COL.cream);
         fill(ctx, ellipse(add(c, rot([0, b.ry * 1.25], b.a ?? 0)), b.rx * 1.3, b.ry * 0.55, b.a ?? 0), COL.furShade);
         fill(ctx, ellipse(add(c, rot([-b.rx * 0.05, -b.ry * 1.18], b.a ?? 0)), b.rx * 1.05, b.ry * 0.5, b.a ?? 0), COL.furLit);
-        // a tuxedo's white shirt front, under the chin
-        if (COL.coat === 'tuxedo') {
-          const bib = b.shape === 'sit' ? [0.42, -0.05, 0.5, 0.78] : b.shape === 'loaf' ? [0.62, 0.15, 0.36, 0.7] : [0.66, 0.12, 0.38, 0.66];
-          fill(ctx, ellipse(add(c, rot([bib[0] * b.rx, bib[1] * b.ry], b.a ?? 0)), bib[2] * b.rx, bib[3] * b.ry, (b.a ?? 0) + 0.15), COL.cream);
-        }
         // three soft tabby stripes over the back
         for (const k of COL.coat === 'tabby' ? [-0.5, -0.12, 0.26] : []) {
           const top = add(c, rot([k * b.rx, -b.ry * 1.05], b.a ?? 0));

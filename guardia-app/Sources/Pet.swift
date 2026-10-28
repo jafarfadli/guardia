@@ -422,8 +422,8 @@ final class PetController {
         return true
     }
 
-    private func leap(to: CGPoint, kind: Jump, dur: Double? = nil) {
-        facing = to.x >= pos.x ? 1 : -1
+    private func leap(to: CGPoint, kind: Jump, dur: Double? = nil, face: CGFloat? = nil) {
+        facing = face ?? (to.x >= pos.x ? 1 : -1)
         let dist = Double(hypot(to.x - pos.x, to.y - pos.y))
         napping = false
         afterWalk = nil
@@ -529,7 +529,7 @@ final class PetController {
             if lift == 0 { liftV = 0 }
             if Date() > until && lift == 0 { set(.idle, for: 3) }
         case .stalk:
-            let m = NSEvent.mouseLocation
+            let m = cursor
             facing = m.x >= pos.x + size.width / 2 ? 1 : -1
             if Date() > until { pounceAt(m.x) }
         case .dangle:
@@ -589,7 +589,8 @@ final class PetController {
         place()
         hitTest()
         // asleep, one tick per breathing frame is enough to notice the first key or mouse move
-        schedule(state == .leap ? 1.0 / 40 : [.walk, .dangle, .fall, .swipe, .startle, .stalk].contains(state) ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
+        // and while the cursor plays at the bottom near him, 20 Hz to follow it
+        schedule(state == .leap ? 1.0 / 40 : [.walk, .dangle, .fall, .swipe, .startle, .stalk].contains(state) || laserNear ? 1.0 / 20 : state == .sleep ? 1.0 / 4 : 1.0 / 10)
     }
 
     private func onKey() {
@@ -652,12 +653,12 @@ final class PetController {
     }
 
     private func feel(now: Double, dt: Double) {
-        let m = NSEvent.mouseLocation
+        let m = cursor
         defer { lastMouse = m }
-        // petting: the cursor stroking over him, no button down
+        // petting: the cursor stroking slowly over him, no button down (a quick wiggle is the laser)
         let over = bodyRect.contains(m) && NSEvent.pressedMouseButtons == 0 && grab == nil
         let moved = hypot(m.x - lastMouse.x, m.y - lastMouse.y)
-        if over && moved > 0.5 { stroked += moved; lastStroke = now }
+        if over && moved > 0.5 && moved < 500 * CGFloat(max(dt, 0.02)) { stroked += moved; lastStroke = now }
         if now - lastStroke < 0.6 { petTime += dt } else if now - lastStroke > 1.5 { stroked = 0; petTime = 0 }
         if stroked > 80 && now - lastStroke < 0.15 {
             if state == .purr && petTime > (cat.lazy ? 12 : 7) {
@@ -669,35 +670,78 @@ final class PetController {
             if [.idle, .walk, .tap].contains(state) && afterWalk == nil { set(.purr, for: 1.6) }
             else if state == .purr { until = Date().addingTimeInterval(1.6) }
         }
+        laser(now: now, m: m)
+    }
 
-        // the laser game: the cursor wiggling to and fro near the floor in front of him
+    // The laser game. The strip at the bottom of the screen, from its very edge (over the Dock
+    // too) to 160 pt above the floor, is the floor the "dot" runs on. The cursor moving there
+    // near a cat: it turns to look. Wiggling, three turns since it came into the strip: the cat
+    // crouches and pounces with its paw on it, and again as long as it keeps wiggling. A cat
+    // farther off runs over first; a napping one wakes for it. Both play; she is a little slower.
+    private var laserNear = false
+    // guardia://pet/try/laser: a pretend cursor wiggling in front of him for a moment
+    private var dot: CGPoint?
+    private var cursor: CGPoint { dot ?? NSEvent.mouseLocation }
+    func playLaser() {
+        guard visible, perch == nil else { return }
+        let x0 = pos.x + size.width / 2 + facing * 150, y = groundOrigin() + feet + 30, t0 = CACurrentMediaTime()
+        Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] t in
+            let e = CACurrentMediaTime() - t0
+            guard let self, e < 2.6 else { t.invalidate(); self?.dot = nil; return }
+            self.dot = CGPoint(x: x0 + 70 * sin(e * 9), y: y)
+        }
+    }
+
+    private func laser(now: Double, m: CGPoint) {
+        let bottom = screen.frame.minY - 1, top = groundOrigin() + feet + 160
+        let inStrip = { (p: CGPoint) in p.y >= bottom && p.y < top }
         trail.append((now, m))
-        trail.removeAll { now - $0.t > 1.2 }
-        guard now > playAgain, [.idle, .walk].contains(state), perch == nil, afterWalk == nil, alerting == nil, !begging, grab == nil,
-              !mood.lowBattery, !over, trail.count > 6 else { return }
-        let floorY = groundOrigin() + feet
-        guard abs(m.x - (pos.x + size.width / 2)) < 450, trail.allSatisfy({ $0.p.y < floorY + 150 && $0.p.y > floorY - 30 }) else { return }
+        trail.removeAll { now - $0.t > 1.5 }
+        let dist = abs(m.x - (pos.x + size.width / 2))
+        laserNear = perch == nil && inStrip(m) && dist < 800
+        guard laserNear, alerting == nil, !begging, grab == nil, !mood.lowBattery else { return }
+        let resting = [.idle, .tap, .purr].contains(state) && afterWalk == nil
+        let moving = trail.count >= 2 && hypot(m.x - trail[trail.count - 2].p.x, m.y - trail[trail.count - 2].p.y) > 2
+        // it caught his eye
+        if resting && moving && dist > 40 && dist < 420 { facing = m.x >= pos.x + size.width / 2 ? 1 : -1 }
+        guard now > playAgain, resting || (state == .walk && afterWalk == nil) || (state == .sleep && napping) else { return }
+        // the wiggle: the latest run of positions inside the strip
+        var run = 0
+        for t in trail.reversed() { if inStrip(t.p) { run += 1 } else { break } }
+        let recent = Array(trail.suffix(run))
+        guard recent.count >= 6, PetController.wiggles(recent.map(\.p)) else { return }
+        napping = false
+        if dist > 420 {
+            // too far to leap: run over, and look again on the way
+            go(to: m.x - size.width / 2, speed: cat.lazy ? 1.8 : 2.6)
+            playAgain = now + 0.4
+            return
+        }
+        facing = m.x >= pos.x + size.width / 2 ? 1 : -1
+        set(.stalk, for: cat.lazy ? 0.9 : 0.55)
+        playAgain = now + 2.5
+    }
+
+    /// A wiggle: three turns to and fro, 200 pt of sideways travel.
+    static func wiggles(_ pts: [CGPoint]) -> Bool {
         var turns = 0, path: CGFloat = 0, lastDir: CGFloat = 0
-        for i in 1..<trail.count {
-            let dx = trail[i].p.x - trail[i - 1].p.x
+        for (a, b) in zip(pts, pts.dropFirst()) {
+            let dx = b.x - a.x
             path += abs(dx)
-            if abs(dx) > 3 {
+            if abs(dx) > 2 {
                 let d: CGFloat = dx > 0 ? 1 : -1
                 if lastDir != 0 && d != lastDir { turns += 1 }
                 lastDir = d
             }
         }
-        guard turns >= 3, path > 240 else { return }
-        playAgain = now + (cat.lazy ? 20 : 8)
-        // she can't always be bothered
-        if cat.lazy && Double.random(in: 0...1) < 0.5 { return }
-        facing = m.x >= pos.x + size.width / 2 ? 1 : -1
-        set(.stalk, for: cat.lazy ? 1.6 : 1.1)
+        return turns >= 3 && path > 200
     }
 
+    // the paw (about x 150 of the cell, facing right) lands on the dot
     private func pounceAt(_ x: CGFloat) {
-        let tx = min(max(x - size.width / 2, bounds.lowerBound), bounds.upperBound)
-        leap(to: CGPoint(x: tx, y: groundOrigin()), kind: .laser, dur: 0.42)
+        let paw = (facing > 0 ? 150 : cell.width - 150) * scale
+        let tx = min(max(x - paw, bounds.lowerBound), bounds.upperBound)
+        leap(to: CGPoint(x: tx, y: groundOrigin()), kind: .laser, dur: 0.42, face: facing)
     }
 
     private func runAway() {
