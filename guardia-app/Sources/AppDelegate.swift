@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let focusGuard = FocusGuard()
     let ringer = Ringer()
     let folderIcons = FolderIcons()
+    let iconWatch = IconWatch()
     // what the room shows: notes, GitHub, Claude's sessions, batteries, the Mac's load, weather
     let widgets = Widgets()
     let notes = Notes()
@@ -136,11 +137,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // app updates bring original icons back: say so now and then (the island's search fixes it)
+        // an app that updates itself loses its paper icon (and shows a folder): yours get it back
+        // on their own; the system's need the password, so the island says so now and then
+        iconWatch.onHeal = { [weak self] fixed, refused in
+            guard let self else { return }
+            if let e = fixed.first {
+                let open = fixed.contains { e in NSWorkspace.shared.runningApplications.contains { $0.bundleURL?.path == e.app } }
+                let names = fixed.count == 1 ? e.name : "\(fixed.count) app"
+                self.island.showToast(icon: "cat", text: "Ikon \(names) dipasang lagi setelah update" + (open ? " · buka ulang app-nya" : ""), seconds: 8)
+            } else if let e = refused.first {
+                self.island.showToast(icon: "cat", text: "macOS menolak memasang ikon \(e.name) · izinkan Guardia di App Management", seconds: 10)
+            }
+        }
+        iconWatch.start()
         let checkIcons = { [weak self] in
-            let lost = AppIcons.missing()
+            let lost = AppIcons.missing().filter { (try? FileManager.default.attributesOfItem(atPath: $0.app))?[.ownerAccountID] as? NSNumber != NSNumber(value: getuid()) }
             guard let self, !lost.isEmpty else { return }
-            self.island.showToast(icon: "cat", text: "\(lost.count) ikon app kembali ke asli · klik island → Pasang ulang ikon", seconds: 8)
+            self.island.showToast(icon: "cat", text: "\(lost.count) ikon app hilang setelah update · klik island → Pasang ulang ikon", seconds: 8)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: checkIcons)
         folderIcons.start()
@@ -315,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                 "household": household.debugState.merging(["mood": ["rain": mood.rain, "music": mood.music, "lowBattery": mood.lowBattery,
                                                                                       "hot": mood.hot, "claude": mood.claude]]) { a, _ in a },
                                 "wallpaper": wallpaper.debugState,
-                                "island": ["running": island.running, "searching": island.searching, "notes": island.editingNotes], "folders": folderIcons.debugState,
+                                "island": ["running": island.running, "searching": island.searching, "notes": island.editingNotes], "folders": folderIcons.debugState, "appIcons": iconWatch.debugState,
                                 "focus": focusGuard.on, "timer": focus.running, "alarms": alarms.list.count,
                                 "widgets": widgets.debugState, "load": load.debug, "weather": weather.debug, "hotkey": searchKey?.registered ?? false]
         if let d = try? JSONSerialization.data(withJSONObject: s, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: dir.appendingPathComponent("status.json")) }

@@ -120,7 +120,9 @@ open -g guardia://weather/rain    # coba cuaca di jendela (clear, partly, cloudy
 ```
 - Jalankan dari Ghostty. App milik sistem (dari App Store: WhatsApp, LINE, Telegram, Office, CapCut, Jump Desktop, plus Tailscale dan Zoom) meminta password Mac sekali.
 - Kalau macOS bilang Ghostty *"was prevented from modifying apps"*, nyalakan Ghostty di System Settings → Privacy & Security → App Management (jendelanya dibuka otomatis), lalu jalankan lagi.
-- App yang update sendiri bisa kembali ke ikon aslinya. Guardia memberi tahu lewat island, dan baris *Pasang ulang ikon app* di pencarian island menjalankan perintah ini lagi.
+- App yang update sendiri kehilangan ikon kertasnya dan malah tampil sebagai folder. Untuk app milikmu (Chrome, Discord, VS Code, dll.), Guardia memasangnya lagi sendiri sekitar 25 detik setelah update selesai dan memberi tahu lewat island (app yang sedang terbuka perlu ditutup ⌘Q dan dibuka lagi). Syaratnya Guardia dinyalakan sekali di System Settings → Privacy & Security → App Management.
+- App milik sistem butuh password, jadi untuk itu island hanya mengingatkan; baris *Pasang ulang ikon app* di pencarian island menjalankan perintah di atas lagi.
+- Supaya izin macOS (App Management, Desktop) tidak hilang tiap Guardia di-build ulang, jalankan `./scripts/signing-cert.sh` sekali: ini membuat sertifikat penandatangan "Guardia" di keychain login Mac ini saja, dan `build.sh` memakainya. Untuk berhenti, hapus "Guardia" di Keychain Access.
 - Folder ikut berganti jadi map kertas manila:
   - folder bawaan (Desktop, Documents, Downloads, Pictures, Movies, Music, Public, Applications, bin, Koding) diberi cap tinta;
   - folder lain di Koding, di Desktop, dan di folder rumah diberi stiker warna berisi inisialnya.

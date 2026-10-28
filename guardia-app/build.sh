@@ -31,5 +31,9 @@ cp -R $here/Resources/maestra $app/Contents/Resources/maestra
 mkdir -p $app/Contents/Resources/icons
 cp $root/icons/folder.html $root/icons/folders.js $root/icons/glyphs.js $app/Contents/Resources/icons/
 [[ -f $here/Resources/AppIcon.icns ]] && cp $here/Resources/AppIcon.icns $app/Contents/Resources/
-codesign --force --sign - --timestamp=none $app >/dev/null
+# macOS keeps its permissions (App Management, the Desktop) by signature: an ad-hoc one changes
+# with every build and loses them, so sign with the "Guardia" certificate when this Mac has one
+# (scripts/signing-cert.sh makes it)
+if security find-certificate -c Guardia >/dev/null 2>&1; then sign=Guardia; else sign=-; fi
+codesign --force --sign $sign --timestamp=none $app >/dev/null
 echo "built $app"

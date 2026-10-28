@@ -129,8 +129,9 @@ final class PetController {
         // he starts right of the middle, she left of it
         pos = CGPoint(x: (screen.visibleFrame.minX + screen.visibleFrame.maxX) / 2 + (cat.lazy ? -220 : 160), y: g)
         place()
-        hiddenForFullScreen = false
-        panel.orderFrontRegardless()
+        // put up only off a full-screen Space: a window first shown on one stays bound to it and
+        // never shows on the desktop again
+        hiddenForFullScreen = true
         checkFullScreen()
         last = CACurrentMediaTime()
         interval = 0

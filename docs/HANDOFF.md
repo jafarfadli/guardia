@@ -425,8 +425,17 @@ The user asked for more interactions and a second cat. They agreed to every idea
 - `try/meal`: both walked to the middle begging. `try/feed`: `eat` with "nyam nyam", then rest; `meal.*` stored.
 - Not verified on screen, because the agent can't move the user's cursor and the user was mostly in full-screen Spaces: petting, perching, and the pair games' looks. They are driven by the same state machine; `guardia://pet/try/…` shows each. (The laser was verified later with `try/laser`, see above.)
 
+### App icons heal themselves; the cats' windows and full-screen Spaces (same day)
+- **Chrome showed a folder.** Chrome updated itself to 156 and replaced its bundle. That removed `Icon\r` but left the custom-icon flag in `com.apple.FinderInfo` (bytes 8–9 = `04 00`), so macOS drew a generic folder, not even Chrome's own icon. A Dock tile of a running app keeps the icon it had at launch, so the app has to be reopened.
+- `AppIcons.heal()` puts the icon back on lost apps the user owns, once nothing in the bundle has changed for 20 s, and touches the bundle for the Dock. `IconWatch` watches the folders the icon apps live in (an update swaps the bundle there), waits 25 s after the last change, and also checks every 5 min. The island says which app got its icon back. System-owned apps still get the 6-hourly toast pointing at `app-icons.sh`.
+- Guardia launched by launchd may only change other apps if it is on in **App Management**; otherwise `setIcon` just returns false, and the write probe gives `Operation not permitted`. Status: `appIcons` with `lost`, `lastFixed`, `refused`, `why`.
+- **Signing.** Ad-hoc signing made every build a new app to TCC, so permissions (App Management, and the Desktop folder, which had been refused) were lost on each rebuild. `scripts/signing-cert.sh` makes a self-signed code-signing certificate "Guardia" in the login keychain (untrusted, which codesign accepts). `build.sh` signs with it when present, so the designated requirement is `identifier "id.guardia.app" and certificate leaf = H"…"`.
+- Verified live: VLC with `Icon\r` removed was healed by Guardia after a restart, and again by the folder watcher after a change in /Applications, without a restart.
+- **Cats missing on the desktop.** A cat panel first ordered in while a full-screen Space is current stays bound to that Space (`canJoinAllSpaces` notwithstanding). Ordering it out and in again did not help; only a new window did. Guardia had been reinstalled while the user was in VS Code full screen. `start()` now leaves the panel hidden and lets `checkFullScreen()` put it up only off such a Space. Not tested: starting while Chrome is in full screen, where the cats are shown at once.
+
 ## Tools and gotchas
 
+- Reinstall Guardia while the user is on an ordinary desktop if you can (see the full-screen Space note in round 12).
 - **swiftc is broken** by a stale CLT `module.modulemap`. `guardia-app/build.sh` works around it with a VFS overlay. Reinstall the app with: `launchctl bootout gui/$UID/id.guardia.app`, then copy `build/app/Guardia.app` to `~/Applications`, then `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/id.guardia.app.plist`. Copying while the agent runs fails, because launchd relaunches Guardia mid-copy.
 - This agent has **no Screen Recording permission**, so it cannot screenshot the live desktop. Verify like this:
   - wallpaper: `node scripts/preview.mjs --times 16:30,21:00` (headless Chrome renders in `build/preview/`);
