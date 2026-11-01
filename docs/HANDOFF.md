@@ -433,11 +433,18 @@ The user asked for more interactions and a second cat. They agreed to every idea
 - Verified live: VLC with `Icon\r` removed was healed by Guardia after a restart, and again by the folder watcher after a change in /Applications, without a restart.
 - **Cats missing on the desktop.** A cat panel first ordered in while a full-screen Space is current stays bound to that Space (`canJoinAllSpaces` notwithstanding). Ordering it out and in again did not help; only a new window did. Guardia had been reinstalled while the user was in VS Code full screen. `start()` now leaves the panel hidden and lets `checkFullScreen()` put it up only off such a Space. Not tested: starting while Chrome is in full screen, where the cats are shown at once.
 
+## The room gone blank (2026-11-01)
+- Symptom: flat brown behind the windows, rain still falling, status saying `ready: true` with no error. Only the `#view` canvas was empty; the window and the page were alive.
+- Cause: when WebKit's GPU process dies, the page's WebGL context is lost for good. Nothing throws, so the minute's repaint does nothing, and `verify()` is satisfied by `ready: true`. Nothing in the page listened for the loss. Why the process died that time is not known; the running page was gone once Guardia was reinstalled.
+- Fix (`wallpaper/src/main.js`): `relight()` reloads the page 5 s after `webglcontextlost`, and `render()` checks `isContextLost()` as well. A fresh page gets a new context, and the host resends the song, widgets and place on "ready".
+- Proof, real WebKit off screen with the bundle's files: killing only that test's GPU process (found as the one new `com.apple.WebKit.GPU` pid) left the old page at one flat colour (59,44,34) after 12 s, still `ready: true`, context lost; the new page was blank at 2 s and whole again at 12 s after one reload.
+- `WEBGL_lose_context` does not show this in WebKit: the canvas keeps its last picture (in headless Chrome it does go blank). `guardia://wallpaper/lose` uses it, so it only exercises the reload. To see the blank, kill a GPU process.
+
 ## Tools and gotchas
 
 - Reinstall Guardia while the user is on an ordinary desktop if you can (see the full-screen Space note in round 12).
 - **swiftc is broken** by a stale CLT `module.modulemap`. `guardia-app/build.sh` works around it with a VFS overlay. Reinstall the app with: `launchctl bootout gui/$UID/id.guardia.app`, then copy `build/app/Guardia.app` to `~/Applications`, then `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/id.guardia.app.plist`. Copying while the agent runs fails, because launchd relaunches Guardia mid-copy.
-- This agent has **no Screen Recording permission**, so it cannot screenshot the live desktop. Verify like this:
+- `screencapture -x` works for this agent as of 2026-10-28 (the note below it predates that). Other ways to verify:
   - wallpaper: `node scripts/preview.mjs --times 16:30,21:00` (headless Chrome renders in `build/preview/`);
   - native surfaces: `Guardia --snapshot <dir>` writes the island states, `pet.png` (one frame from each animation, through the real sprite layer), and the wallpaper as WebKit renders it;
   - window placement: CGWindowList, using a small Swift script compiled with the same overlay flags.

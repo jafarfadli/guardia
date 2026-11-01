@@ -244,6 +244,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch parts.dropFirst().first {
                 case "on": setWallpaper(true)
                 case "off": setWallpaper(false)
+                // takes the GPU context away, the way macOS can: the page should bring itself back
+                case "lose": wallpaper.broadcast("document.getElementById('view').getContext('webgl2').getExtension('WEBGL_lose_context').loseContext()")
                 default: wallpaper.verify()
                 }
             case "island":

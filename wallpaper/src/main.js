@@ -35,6 +35,17 @@ let grader = null;
 try { grader = new Grader(view, TOKENS); } catch (e) { console.warn('[guardia] no WebGL2, showing the ungraded room', e); }
 const dust = new Dust(document.getElementById('dust'));
 
+// macOS can take the GPU context away. Nothing throws then: the room goes blank and the page goes
+// on saying it's fine. A fresh page gets a new context, and the host sends it everything again.
+let relighting = false;
+function relight() {
+  if (relighting) return;
+  relighting = true;
+  console.warn('[guardia] WebGL context lost, reloading the page');
+  setTimeout(() => location.reload(), 5000);
+}
+view.addEventListener('webglcontextlost', relight);
+
 let meta = null;
 const images = new Map();
 function image(file) {
@@ -173,6 +184,7 @@ function thunder() {
 // ------------------------------------------------------------------ one frame of the room
 async function render() {
   const t0 = performance.now();
+  if (grader?.gl.isContextLost()) { relight(); return; }
   if (!meta) { meta = await (await fetch('frames/frames.json')).json(); await W.loadMasks(meta); }
   const dpr = Number(q.get('dpr') || window.devicePixelRatio || 1);
   const Wd = Math.round(window.innerWidth * dpr), Hd = Math.round(window.innerHeight * dpr);
